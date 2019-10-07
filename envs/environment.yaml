@@ -1,0 +1,14 @@
+channels:
+- bioconda
+- conda-forge
+dependencies:
+- samtools
+- fastqc
+- multiqc
+- trim-galore
+- cutadapt
+- bedtools
+- ucsc-bedgraphtobigwig
+- pandoc
+- bismark
+- bowtie2
