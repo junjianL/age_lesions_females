@@ -316,28 +316,10 @@ rule extractMethylation:
 		"envs/environment.yaml"
 	shell:
 		"bismark --version >> {log}; "
-		"bismark_methylation_extractor -p --bedGraph --comprehensive --genome_folder {params.genome} "
-		"--no_overlap --multicore {threads} --buffer_size 2G -o {params.methdir} {input}"
+		"bismark_methylation_extractor -p --cytosine_report --comprehensive "
+		" --genome_folder {params.genome} --no_overlap --multicore {threads} --buffer_size 2G "
+		" -o {params.methdir} {input}"
 	
-
-## Convert bedgraph files to bigWig
-#rule bigwig:
-#  input:
-#		.bedgraph
-#	output:
-#		outputdir + "STARbigwig/{sample}_Aligned.sortedByCoord.out.bw"
-#	params:
-#		STARbigwigdir = outputdir + "STARbigwig"
-#	log:
-#		outputdir + "logs/bigwig_{sample}.log"
-#	benchmark:
-#		outputdir + "benchmarks/bigwig_{sample}.txt"
-#	conda:
-#		"envs/environment.yaml"
-# bedGraphToBigWig {params.STARbigwigdir}/{wildcards.sample}_Aligned.sortedByCoord.out.bedGraph "
-#		"{input.chrl} {output}; rm -f {params.STARbigwigdir}/{wildcards.sample}_Aligned.sortedByCoord.out.bedGraph"
-
-
 ## ------------------------------------------------------------------------------------ ##
 ## Input variable check
 ## ------------------------------------------------------------------------------------ ##
