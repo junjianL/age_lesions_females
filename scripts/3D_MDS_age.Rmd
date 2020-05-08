@@ -1,0 +1,49 @@
+---
+title: "3D MDS Age Samples"
+author: "Stephany Orjuela"
+date: "13/12/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+#run from console
+#rmarkdown::render("scripts/3D_MDS_age.Rmd")
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(edgeR)
+library(rgl)
+load("data/bsseq_lesions_filt.RData")
+```
+
+
+```{r, echo=F, include = F}
+#Get Cov and meth
+cov <- getCoverage(bismarkBSseq, type = "Cov")
+meth <- getCoverage(bismarkBSseq, type = "M")
+
+meth_vals <- meth /cov
+colnames(meth_vals) <- colData(bismarkBSseq)$names
+
+methsTR <- asin(2*meth_vals-1)
+m3 <- limma::plotMDS(methsTR, dim.plot=c(1,3), top = 10000, labels = colnames(meth_vals))
+
+#m3 <- plotMDS(y, dim.plot=c(1,3), )
+```
+
+## 3D plot
+Black: Old  
+Red: Young
+
+```{r, echo=FALSE}
+m3cmds <- m3$cmdscale.out
+par3d(cex=1)
+plot3d(x = m3cmds[,1], y = m3cmds[,2], z = m3cmds[,3], xlab = "1", ylab = "2", zlab = "3", 
+       col = c(1:2)[colData(bismarkBSseq)$age_group], type="p", size=8)
+text3d(x = m3cmds[,1], y = m3cmds[,2], z = m3cmds[,3], cex = 0.8, font = 1, text = colnames(meth_vals), 
+        adj = 0.5, family="sans") 
+
+subid <- currentSubscene3d()
+rglwidget(elementId="3DMDS")
+```

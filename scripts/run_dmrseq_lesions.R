@@ -7,7 +7,7 @@ suppressPackageStartupMessages({
   library(ggplot2)
 })
 
-
+source("scripts/get_table_with_annots.R")
 metafile <- "data/metadata_serrated.txt" #36 samples, 18 patients
 #print(metafile)
 
@@ -37,14 +37,36 @@ save(bismarkBSseq, file = "data/bsseq_lesions_cpgreport.RData")
 loci.idx <- DelayedMatrixStats::rowSums2(getCoverage(bismarkBSseq, type="Cov") >= 10 ) >= 28
 bismarkBSseq <- bismarkBSseq[loci.idx,] #2,773,805
 
-#Filter coverage high
-loci.idx <- DelayedMatrixStats::rowSums2(getCoverage(bismarkBSseq, type="Cov") <= 200 ) == 36
-bismarkBSseq <- bismarkBSseq[loci.idx,] #2,628,330
-
 #Filter chrom X,Y and weird ones
 loci.idx <- seqnames(bismarkBSseq) %in% c(1:22)
-bismarkBSseq <- bismarkBSseq[loci.idx,] #2,563,041
+bismarkBSseq <- bismarkBSseq[loci.idx,] #2,703,961
 
+#Filter/reduce coverage high
+
+cov <- getCoverage(bismarkBSseq, type = "Cov")
+meth <- getCoverage(bismarkBSseq, type = "M")
+ind.cov <- cov > 0
+quant <- quantile(cov[ind.cov], 0.9)
+quant #92 
+
+limitCov <- function(cov, meth, maxCov, object){
+  cov <- as.matrix(cov)
+  meth <- as.matrix(meth)
+  indCov <- cov > maxCov
+  fraction <- meth[indCov] / cov[indCov]
+  cov[indCov] <- as.integer(maxCov)
+  meth[indCov] <- as.integer(round(fraction * maxCov))
+  object <- BSseq(M = meth, 
+                  Cov = cov, 
+                  pData = colData(object), 
+                  gr = granges(object),
+                  sampleNames = colData(bismarkBSseq)$names)
+  return(object)
+}
+
+bismarkBSseq <- limitCov(cov, meth, quant, bismarkBSseq)
+
+save(bismarkBSseq, file = "data/bsseq_lesions_filt.RData")
 
 #Generate bws
 cov <- getCoverage(bismarkBSseq, type = "Cov")
@@ -107,17 +129,27 @@ d <- data.frame(mean_meth = mean_meth,
                 var_meth = var_meth)
 
 #mean meth Vs mean cov
-ggplot(d) + geom_point(aes(x= mean_cov, y = mean_meth), alpha = 0.2) + 
-  #geom_density_2d() +
+# ggplot(d) + geom_point(aes(x= mean_cov, y = mean_meth), alpha = 0.1) + 
+#   geom_density_2d(aes(x= mean_cov, y = mean_meth)) +
+#   theme_bw()
+
+ggplot(d) + aes(x=mean_cov, y=mean_meth) + 
+  geom_bin2d() + 
+  scale_fill_distiller(palette='RdBu', trans='log10') + 
+  scale_x_continuous(breaks=scales::pretty_breaks()) +
   theme_bw()
-ggsave("figures/covVsmeth_lesions.png")
+
+ggsave("figures/covVsmeth_lesions2.png")
 
 #MD  
 
 #MV
-# ggplot(d) + geom_point(aes(mean_meth, var_meth), alpha = 0.2) +
-#   theme_bw() +
-# ggsave("figures/meanVsvar.png")
+ggplot(d) + aes(x=mean_cov, y=var_meth) + 
+  geom_bin2d() + 
+  scale_fill_distiller(palette='RdBu', trans='log10') + 
+  scale_x_continuous(breaks=scales::pretty_breaks()) +
+  theme_bw()
+ggsave("figures/meanVsvar_lesions2.png")
 
 #meth per sample
 pos <- paste0(seqnames(bismarkBSseq),".", start(bismarkBSseq))
@@ -131,13 +163,34 @@ ggplot(meth_vals_melt) + geom_violin(aes(x = variable, y = value)) +
 ggsave("figures/meth_violins_lesions.png")
 
 #Run dmrseq
+scale_beta <- function(u){
+  min_u <- min(abs(u))
+  max_u <- max(abs(u))
+  sign(u) * (abs(u)-min_u)/(max_u-min_u)
+  # min_u <- min(u)
+  # max_u <- max(u)
+  # (u-min_u)/(max_u-min_u)
+}
+
+set.seed(1234)
 DMRsles <- dmrseq(bs=bismarkBSseq,
                   testCovariate="state", 
                   cutoff = 0.05, 
-                  BPPARAM = MulticoreParam(1),
+                  BPPARAM = MulticoreParam(3),
                   adjustCovariate = "patient",
+                  maxPerms = 20,
                   maxGap = 100,
                   maxGapSmooth = 1000,
-                  minNumRegion = 3)
-save(DMRsage_cecum,file = "data/DMRs_lesions.RData")
+                  minNumRegion = 3) #55,186
+
+#Filter
+DMRsles_filt <- DMRsles[!is.na(DMRsles$qval)] #55,128
+DMRsles_filt$beta <- -1 * DMRsles_filt$beta
+DMRsles_filt$meth <- scale_beta(DMRsles_filt$beta)
+DMRsles_annot <- get_table_with_annots(DMRsles_filt)
+
+#save files
+save(DMRsles_annot,file = "data/DMRs_lesions_3.RData")
+df <- as.data.frame(DMRsles_annot)
+write.table(df, file = "data/DMRs_lesions_3.txt", quote = FALSE, row.names = FALSE)
 

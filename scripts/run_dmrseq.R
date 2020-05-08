@@ -6,16 +6,17 @@ suppressPackageStartupMessages({
   library(dmrseq)
   library(dplyr)
   library(ggplot2)
+  library(annotatr)
 })
 
-
+source("scripts/get_table_with_annots.R")
 metafile <- "data/metadata.txt"
 #print(metafile)
 
 #Read in metadata
 metadata <- read.delim(metafile, header = TRUE, as.is = TRUE, sep = "\t")
 infile <- sprintf("data/methextract/%s_pe.CpG_report.txt", metadata$names)
-infile2 <- sprintf("data/methextract/%s_pe.bismark.cov.gz", metadata$names)
+#infile2 <- sprintf("data/methextract/%s_pe.bismark.cov.gz", metadata$names)
 
 #metadata$patient <- gsub("[0-9]+\\.A-", "", metadata$names)
 #metadata$patient <- gsub("_[a-z]+","",metadata$patient)
@@ -37,19 +38,44 @@ bismarkBSseq <- read.bismark(files = infile,
                              replace = TRUE) #26,660,520
 
 save(bismarkBSseq, file = "data/bsseq_cpgreport.RData")
+#load("data/bsseq_cpgreport.RData")
 
 #Filter coverage low
 loci.idx <- DelayedMatrixStats::rowSums2(getCoverage(bismarkBSseq, type="Cov") >= 10 ) >= 10
 bismarkBSseq <- bismarkBSseq[loci.idx,] #2,481,876
 
-#Filter coverage high
-loci.idx <- DelayedMatrixStats::rowSums2(getCoverage(bismarkBSseq, type="Cov") <= 200 ) == 12
-bismarkBSseq <- bismarkBSseq[loci.idx,] #2,473,607
-
 #Filter chrom X,Y and weird ones
 loci.idx <- seqnames(bismarkBSseq) %in% c(1:22)
-bismarkBSseq <- bismarkBSseq[loci.idx,] #2,411,456
+bismarkBSseq <- bismarkBSseq[loci.idx,] #2,418,647
 
+#Filter/reduce coverage high (test)
+#loci.idx <- DelayedMatrixStats::rowSums2(getCoverage(bismarkBSseq, type="Cov") <= 200 ) == 36
+#bismarkBSseq <- bismarkBSseq[loci.idx,] 
+
+#or from BiSeq
+cov <- getCoverage(bismarkBSseq, type = "Cov")
+meth <- getCoverage(bismarkBSseq, type = "M")
+ind.cov <- cov > 0
+quant <- quantile(cov[ind.cov], 0.9)
+quant  #66
+
+limitCov <- function(cov, meth, maxCov, object){
+  cov <- as.matrix(cov)
+  meth <- as.matrix(meth)
+  indCov <- cov > maxCov
+  fraction <- meth[indCov] / cov[indCov]
+  cov[indCov] <- as.integer(maxCov)
+  meth[indCov] <- as.integer(round(fraction * maxCov))
+  object <- BSseq(M = meth, 
+                  Cov = cov, 
+                  pData = colData(object), 
+                  gr = granges(object),
+                  sampleNames = colData(bismarkBSseq)$names)
+  return(object)
+}
+
+bismarkBSseq <- limitCov(cov, meth, quant, bismarkBSseq)
+colData(bismarkBSseq)$age_group <- as.factor(colData(bismarkBSseq)$age_group)
 
 #Generate bws
 cov <- getCoverage(bismarkBSseq, type = "Cov")
@@ -112,17 +138,36 @@ d <- data.frame(mean_meth = mean_meth,
                 var_meth = var_meth)
 
 #mean meth Vs mean cov
-ggplot(d) + geom_point(aes(x= mean_cov, y = mean_meth), alpha = 0.2) + 
-  #geom_density_2d() +
+ggplot(d) + aes(x=mean_cov, y=mean_meth) + 
+  geom_bin2d() + 
+  scale_fill_distiller(palette='RdBu', trans='log10') + 
+  scale_x_continuous(breaks=scales::pretty_breaks()) +
   theme_bw()
 ggsave("figures/covVsmeth.png")
 
-#MD  
+#MDS
+methsTR <- asin(2*meth_vals-1)
+#bad <- rowSums(is.finite(methsTR)) < ncol(methsTR)
+#if(any(bad)) methsTR <- methsTR[!bad,,drop=FALSE]
+
+mds_meth <- limma::plotMDS(methsTR, top = 10000, plot = FALSE)$cmdscale.out
+
+df <- data.frame(dim1 = mds_meth[,1], dim2 = mds_meth[,2],
+                 names = colnames(meth_vals), treat = metadata$age_group)
+
+ggplot()+
+  geom_point(data = df, mapping = aes_(x=~dim1, y=~dim2, color=~treat)) +
+  geom_text(data = df, mapping = aes_(x=~dim1, y=~dim2-0.01, label=~names)) +
+  theme_bw()
+ggsave("figures/MDS_top10mil.png")
 
 #MV
-# ggplot(d) + geom_point(aes(mean_meth, var_meth), alpha = 0.2) +
-#   theme_bw() +
-# ggsave("figures/meanVsvar.png")
+ggplot(d) + aes(x=mean_cov, y=var_meth) + 
+  geom_bin2d() + 
+  scale_fill_distiller(palette='RdBu', trans='log10') + 
+  scale_x_continuous(breaks=scales::pretty_breaks()) +
+  theme_bw()
+ggsave("figures/meanVsvar.png")
 
 #meth per sample
 pos <- paste0(seqnames(bismarkBSseq),".", start(bismarkBSseq))
@@ -175,7 +220,16 @@ ggsave("figures/hist_betas_persection.png")
 
 
 #### Run dmrseq ####
-#Change sign for beta!
+#scale beta func
+
+scale_beta <- function(u){
+  min_u <- min(abs(u))
+  max_u <- max(abs(u))
+  sign(u) * (abs(u)-min_u)/(max_u-min_u)
+  # min_u <- min(u)
+  # max_u <- max(u)
+  # (u-min_u)/(max_u-min_u)
+}
 
 colData(bismarkBSseq)$age_group <- relevel(factor(metadata$age_group), ref = "old")
 bsc <- bismarkBSseq[,metadata$segment == "cecum"]
@@ -187,14 +241,21 @@ DMRsage_cecum <- dmrseq(bs=bsc,
                         maxGap = 100,
                         maxGapSmooth = 1000,
                         minNumRegion = 3)
+#DMRsage_cecum <- DMRsage_cecum[DMRsage_cecum$qval < 0.05] #697
+DMRsage_cecum$beta <- -1 * DMRsage_cecum$beta #31,145
+DMRsage_cecum$meth <- scale_beta(DMRsage_cecum$beta)
+DMRsage_cecum_annot <- get_table_with_annots(DMRsage_cecum)
 
-save(DMRsage_cecum,file = "data/DMRs_age_cecum.RData")
-df <- as.data.frame(DMRsage_cecum)
-write.table(df, file = "data/DMRs_age_cecum.txt", quote = FALSE, row.names = FALSE)
+hist(DMRsage_cecum$beta)
+hist(DMRsage_cecum$meth)
 
-#load("data/DMRs_age_cecum.RData")
+save(DMRsage_cecum_annot,file = "data/DMRs_age_cecum_2.RData")
 
-bss <- bismarkBSseq[,metadata$segment == "sigmoid"]
+df <- as.data.frame(DMRsage_cecum_annot)
+write.table(df, file = "data/DMRs_age_cecum_2.txt", quote = FALSE, row.names = FALSE)
+
+#Sigmoid
+#bss <- bismarkBSseq[,metadata$segment == "sigmoid"]
 DMRsage_sig <- dmrseq(bs=bss,
                       testCovariate="age_group", 
                       cutoff = 0.05, 
@@ -203,19 +264,34 @@ DMRsage_sig <- dmrseq(bs=bss,
                       maxGap = 100,
                       maxGapSmooth = 1000,
                       minNumRegion = 3)
+#DMRsage_sig <- DMRsage_sig[DMRsage_sig$qval < 0.05] #112
+DMRsage_sig$beta <- -1 * DMRsage_sig$beta #37,382
+DMRsage_sig$meth <- scale_beta(DMRsage_sig$beta)
+DMRsage_sig_annot <- get_table_with_annots(DMRsage_sig)
 
-save(DMRsage_sig,file = "data/DMRs_age_sig.RData")
-df <- as.data.frame(DMRsage_sig)
-write.table(df, file = "data/DMRs_age_sigmoid.txt", quote = FALSE, row.names = FALSE)
+save(DMRsage_sig_annot,file = "data/DMRs_age_sig_2.RData")
 
+df <- as.data.frame(DMRsage_sig_annot)
+write.table(df, file = "data/DMRs_age_sigmoid_2.txt", quote = FALSE, row.names = FALSE)
 
-#Use only segment as a covariate (?)
+#Use only segment as a covariate
+set.seed(1234)
 DMRsage <- dmrseq(bs=bismarkBSseq,
                   testCovariate="age_group", 
                   cutoff = 0.05, 
-                  BPPARAM = MulticoreParam(1),
+                  BPPARAM = MulticoreParam(3),
                   adjustCovariate = "segment",
+                  maxPerms = 20,
                   maxGap = 100,
                   maxGapSmooth = 1000,
                   minNumRegion = 3)
-save(DMRsage_cecum,file = "data/DMRs_age_2.RData")
+
+DMRsage$beta <- -1 * DMRsage$beta #24,162
+DMRsage$meth <- scale_beta(DMRsage$beta)
+DMRsage_annot <- get_table_with_annots(DMRsage)
+save(DMRsage_annot,file = "data/DMRs_age_final.RData")
+
+df <- as.data.frame(DMRsage_annot)
+write.table(df, file = "data/DMRs_age_final.txt", quote = FALSE, row.names = FALSE)
+
+

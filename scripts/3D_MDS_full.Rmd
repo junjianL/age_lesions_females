@@ -1,0 +1,53 @@
+---
+title: "3D MDS Lesions + Age Samples"
+author: "Stephany Orjuela"
+date: "16/12/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+
+#run from console
+#rmarkdown::render("scripts/3D_MDS_full.Rmd")
+
+knitr::opts_chunk$set(echo = TRUE)
+
+library(rgl)
+#load("data/bsseq_lesions_filt.RData")
+```
+
+
+```{r, echo=F, include = F}
+#Get Cov and meth
+# cov <- getCoverage(bsCombined, type = "Cov")
+# meth <- getCoverage(bsCombined, type = "M")
+# meth_vals <- meth /cov
+# colnames(meth_vals) <- colData(bsCombined)$names
+# 
+# #Transform
+# methsTR <- asin(2*meth_vals-1)
+
+m3 <- limma::plotMDS(methsTR, dim.plot=c(1,3), top = 10000, labels = colnames(meth_vals))
+```
+
+Red: Adenoma  
+Blue: cecum_old  
+Green: cecum_young  
+Purple: Normal_Adenoma  
+Orange: Normal_SSA  
+Yellow: sigmoid_old     
+Brown: sigmoid_young   
+Pink: SSA
+
+```{r, echo=FALSE}
+myColor <- RColorBrewer::brewer.pal(9, "Set1")
+m3cmds <- m3$cmdscale.out
+par3d(cex=1)
+plot3d(x = m3cmds[,1], y = m3cmds[,2], z = m3cmds[,3], xlab = "1", ylab = "2", zlab = "3", 
+       col = myColor[as.factor(colData(bsCombined)$lesion)], type="p", size=8)
+text3d(x = m3cmds[,1], y = m3cmds[,2], z = m3cmds[,3], cex = 0.8, font = 1, text = colData(bsCombined)$patient, 
+        adj = 1.2, family="sans") 
+
+subid <- currentSubscene3d()
+rglwidget(elementId="3DMDS")
+```
