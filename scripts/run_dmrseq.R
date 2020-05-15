@@ -295,3 +295,14 @@ df <- as.data.frame(DMRsage_annot)
 write.table(df, file = "data/DMRs_age_final.txt", quote = FALSE, row.names = FALSE)
 
 
+#Test segment independent of age (only paired comparison here)
+DMRsseg <- dmrseq(bs=bismarkBSseq,
+                  testCovariate="segment", 
+                  cutoff = 0.05, 
+                  BPPARAM = MulticoreParam(3),
+                  adjustCovariate = "patient",
+                  maxPerms = 20,
+                  maxGap = 100,
+                  maxGapSmooth = 1000,
+                  minNumRegion = 3)
+

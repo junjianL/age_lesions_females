@@ -29,7 +29,7 @@ DMRsage_annot$state <- ifelse(DMRsage_annot$beta < 0 & DMRsage_annot$qval < 0.05
                               "hypo", DMRsage_annot$state)
 
 
-#### load combined object
+#### load combined object ####
 load("data/bsseqCombined.RData")
 
 #Get meth table
@@ -41,8 +41,17 @@ colnames(meth_vals) <- paste0(colData(bsCombined)$patient,".",colData(bsCombined
 mcols(gr) <- meth_vals
 seqlevels(gr) <- paste0("chr",seqlevels(gr))
 
+#Fix some annotations
+colData(bsCombined)$state <- ifelse(is.na(colData(bsCombined)$state), 
+                                    "Normal", colData(bsCombined)$state)
+seg <- ifelse(colData(bsCombined)$segment == "C","cecum", colData(bsCombined)$segment)
+seg <- ifelse(seg == "A","ascend", seg)
 
-#summarize meth per region, per sample
+age <- ifelse(colData(bsCombined)$age < 40, "<40", "41-70")
+age <- ifelse(colData(bsCombined)$age > 70, ">70", age)
+colData(bsCombined)$age_group <- age
+
+#summarize meth per region, per sample <<<<<<-------------------
 hits <- findOverlaps(DMRsage_annot[DMRsage_annot$state == "hyper"], gr)
 gr$DMR <- NA
 gr[subjectHits(hits)]$DMR <- queryHits(hits)
@@ -57,10 +66,7 @@ gr_dmr <- gr_sub %>%
     colnames(meth_vals), mean, na.rm=TRUE
   )
 
-#Get matrix
-colData(bsCombined)$state <- ifelse(is.na(colData(bsCombined)$state), 
-                                        "Normal", colData(bsCombined)$state)
-
+#### Get matrix for all normals ####
 idx <- colData(bsCombined)$state == "Normal" #select all normals
 agg <- as.matrix(gr_dmr)[,-1][1:200,idx] #choose number of DMRs
 #methsTR <- asin(2*agg-1)
@@ -68,21 +74,25 @@ agg <- as.matrix(gr_dmr)[,-1][1:200,idx] #choose number of DMRs
 scagg <- scale_exprs(agg)
 
 #Colors
+#my prefered color scheme
 col <- RColorBrewer::brewer.pal(n = 9, name = "YlGnBu")
-col_fun <- circlize::colorRamp2(c(0, 0.5, 1), c(col[1], col[5], col[9]))
-#col_fun <- viridis(50)
+#col_fun <- circlize::colorRamp2(c(0, 0.5, 1), c(col[1], col[5], col[9]))
+
+#giancarlo schemes
+#col_fun <- viridis(50) #1
+col_fun <- circlize::colorRamp2(c(0,0.2,1), c(col[9], col[7], col_anot[6])) #2
+
+#annotation color
 col_anot <- RColorBrewer::brewer.pal(n = 9, name = "Set1")
+col_anot2 <- RColorBrewer::brewer.pal(n = 3, name = "Set2")
 
-#change some annotations
-seg <- ifelse(colData(bsCombined)$segment == "C","cecum", colData(bsCombined)$segment)
-seg <- ifelse(seg == "A","ascend", seg)
-
-#Annotation
+#HM Annotation
 column_ha <- HeatmapAnnotation(Age_group = colData(bsCombined)$age_group[idx], 
                               Segment = seg[idx],
                               Tissue = colData(bsCombined)$lesion[idx],
-                              col = list(Age_group = c("young" = col_anot[1], 
-                                                       "old"= col_anot[2]),
+                              col = list(Age_group = c("<40" = col_anot2[1], 
+                                                       "41-70"= col_anot2[2],
+                                                       ">70"= col_anot2[3]),
                                          Segment = c("cecum" = col_anot[3], 
                                                      "sigmoid" = col_anot[4],
                                                      "ascend" = col_anot[5]),
@@ -94,34 +104,71 @@ column_ha <- HeatmapAnnotation(Age_group = colData(bsCombined)$age_group[idx],
                                                     "sigmoid_young"=col_anot[8])))
 
 #Plot
-pdf("figures/heatmap_agedmrs_plusnormals_mycol.pdf")
-Heatmap(scagg, 
+pdf("figures/heatmap_agedmrs_plusnormals_splitsegment.pdf")
+Heatmap(agg, 
         na_col = "white",
-        #column_split = metadata$age_group,
+        #column_split = colData(bsCombined)$age_group[idx],
+        column_split = seg[idx],
         top_annotation = column_ha,
-        clustering_distance_columns = "pearson",
+        clustering_distance_columns = "spearman",
         clustering_method_columns = "complete",
         col = col_fun,
         cluster_rows = TRUE, 
         cluster_columns = TRUE,
         show_row_dend = FALSE,
-        row_title = "Hyper DMRs", 
+        row_title = "age related hyper-DMRs (200)", 
         column_title = "Samples",
         column_title_side = "bottom",
-        heatmap_legend_param = list(title = "beta_value",
+        heatmap_legend_param = list(title = "mean beta",
                                     grid_height = unit(1, "cm"),
                                     grid_width = unit(0.5, "cm"),
                                     labels_gp = gpar(fontsize = 10)),
         row_names_gp = gpar(fontsize = 12))
 dev.off()
 
+##### Only use age samples ####
+idx <- colData(bsCombined)$segment %in% c("cecum","sigmoid") #select all normals
+agg <- as.matrix(gr_dmr)[,-1][1:200,idx] #choose number of DMRs
+
+column_ha <- HeatmapAnnotation(Age_group = colData(bsCombined)$age_group[idx], 
+                               Segment = seg[idx],
+                               col = list(Age_group = c("<40" = col_anot2[1], 
+                                                        "41-70"= col_anot2[2],
+                                                        ">70"= col_anot2[3]),
+                                          Segment = c("cecum" = col_anot[3], 
+                                                      "sigmoid" = col_anot[4],
+                                                      "ascend" = col_anot[5])
+                                          ))
+
+
+pdf("figures/heatmap_agedmrs_splitage.pdf")
+Heatmap(agg, 
+        na_col = "white",
+        column_split = colData(bsCombined)$age_group[idx],
+        #column_split = seg[idx],
+        top_annotation = column_ha,
+        clustering_distance_columns = "spearman",
+        clustering_method_columns = "complete",
+        col = col_fun,
+        cluster_rows = TRUE, 
+        cluster_columns = TRUE,
+        show_row_dend = FALSE,
+        row_title = "age related hyper-DMRs (top 200)", 
+        column_title = "Samples",
+        column_title_side = "bottom",
+        heatmap_legend_param = list(title = "beta",
+                                    grid_height = unit(1, "cm"),
+                                    grid_width = unit(0.5, "cm"),
+                                    labels_gp = gpar(fontsize = 10)),
+        row_names_gp = gpar(fontsize = 12))
+dev.off()
 
 #### most variable promoters? ####
 
-annotsgene <- c("hg19_genes_promoters")
+#annotsgene <- c("hg19_genes_promoters")
+annotsgene <- c("hg19_cpg_islands")
 annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
 annotations_genes <- unique(annotations_genes)
-
 
 #summarize meth per region, per sample
 hits <- findOverlaps(annotations_genes, gr)
@@ -142,28 +189,29 @@ gr_dmr <- gr_sub %>%
 # mad <- sweep(as.matrix(gr_dmr)[,-1], 1, med.att, FUN="-")
 # mads <- apply(mad, 1, function(x) median(abs(x)))
 
-madr <- apply(as.matrix(gr_dmr)[,-1][,idx], 1, mad)
+idx <- colData(bsCombined)$state == "Normal"
+
+#madr <- apply(as.matrix(gr_dmr)[,-1][,idx], 1, mad)
 madr <- rowVars(as.matrix(gr_dmr)[,-1][,idx])
 o <- order(madr, decreasing = TRUE)
-agg <- as.matrix(gr_dmr)[o,-1][1:2000,idx]
+agg <- as.matrix(gr_dmr)[o,-1][1:200,idx]
 methsTR <- asin(2*agg-1)
 
-scagg <- scale_exprs(agg)
-  
-pdf("figures/heatmap_2000proms_plusnormals_mycol_scaled.pdf")
+pdf("figures/heatmap_200proms_plusnormals_splitsegment.pdf")
 Heatmap(
-        #scagg, 
-        methsTR,
+        agg, 
+        #methsTR,
         na_col = "white",
-        #column_split = metadata$age_group,
+        #column_split = colData(bsCombined)$age_group[idx],
+        column_split = seg[idx],
         top_annotation = column_ha,
-        clustering_distance_columns = "pearson",
+        clustering_distance_columns = "spearman",
         clustering_method_columns = "complete",
         col = col_fun,
         cluster_rows = TRUE, 
         cluster_columns = TRUE,
         show_row_dend = FALSE,
-        row_title = "Top 200 promoters (MAD)", 
+        row_title = "Most variable 200 CpG Islands", 
         column_title = "Samples",
         column_title_side = "bottom",
         heatmap_legend_param = list(title = "mean beta value",
@@ -174,16 +222,45 @@ Heatmap(
 dev.off()
 
 
-scale_exprs <- function(x, margin = 1, q = 0.01) {
-  if (!is(x, "matrix")) x <- as.matrix(x)
-  qs <- c(rowQuantiles, colQuantiles)[[margin]]
-  qs <- qs(x, probs = c(q, 1-q))
-  qs <- matrix(qs, ncol = 2)
-  x <- switch(margin,
-              "1" = (x - qs[, 1]) / (qs[, 2] - qs[, 1]),
-              "2" = t((t(x) - qs[, 1]) / (qs[, 2] - qs[, 1])))
-  x[x < 0 | is.na(x)] <- 0
-  x[x > 1] <- 1
-  return(x)
-}
+## only age samples
+idx <- colData(bsCombined)$segment %in% c("sigmoid", "cecum")
 
+#madr <- apply(as.matrix(gr_dmr)[,-1][,idx], 1, mad)
+madr <- rowVars(as.matrix(gr_dmr)[,-1][,idx])
+o <- order(madr, decreasing = TRUE)
+agg <- as.matrix(gr_dmr)[o,-1][1:200,idx]
+methsTR <- asin(2*agg-1)
+
+column_ha <- HeatmapAnnotation(Age_group = colData(bsCombined)$age_group[idx], 
+                               Segment = seg[idx],
+                               col = list(Age_group = c("<40" = col_anot2[1], 
+                                                        "41-70"= col_anot2[2],
+                                                        ">70"= col_anot2[3]),
+                                          Segment = c("cecum" = col_anot[3], 
+                                                      "sigmoid" = col_anot[4],
+                                                      "ascend" = col_anot[5])
+                               ))
+
+pdf("figures/heatmap_200cpgisles_splitsegment.pdf")
+Heatmap(
+  agg, 
+  #methsTR,
+  na_col = "white",
+  #column_split = colData(bsCombined)$age_group[idx],
+  column_split = seg[idx],
+  top_annotation = column_ha,
+  clustering_distance_columns = "spearman",
+  clustering_method_columns = "complete",
+  col = col_fun,
+  cluster_rows = TRUE, 
+  cluster_columns = TRUE,
+  show_row_dend = FALSE,
+  row_title = "Most variable 200 CpG Islands", 
+  column_title = "Samples",
+  column_title_side = "bottom",
+  heatmap_legend_param = list(title = "mean beta value",
+                              grid_height = unit(1, "cm"),
+                              grid_width = unit(0.5, "cm"),
+                              labels_gp = gpar(fontsize = 10)),
+  row_names_gp = gpar(fontsize = 12))
+dev.off()

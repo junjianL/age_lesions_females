@@ -1,0 +1,9 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+.snakemake/
+bigwigs
+data
+figures
+probe_design_sija
