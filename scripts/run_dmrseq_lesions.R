@@ -5,6 +5,7 @@ suppressPackageStartupMessages({
   library(dmrseq)
   library(dplyr)
   library(ggplot2)
+  library(BiocParallel)
 })
 
 source("scripts/get_table_with_annots.R")
@@ -194,3 +195,15 @@ save(DMRsles_annot,file = "data/DMRs_lesions_3.RData")
 df <- as.data.frame(DMRsles_annot)
 write.table(df, file = "data/DMRs_lesions_3.txt", quote = FALSE, row.names = FALSE)
 
+#### only SSA ####
+bs.ssa <- bismarkBSseq[,grepl("SSA",colData(bismarkBSseq)$lesion)]
+set.seed(1234)
+DMRsles.ssa <- dmrseq(bs=bs.ssa,
+                  testCovariate="lesion", 
+                  cutoff = 0.05, 
+                  BPPARAM = MulticoreParam(4),
+                  adjustCovariate = "patient",
+                  maxPerms = 20,
+                  maxGap = 100,
+                  maxGapSmooth = 1000,
+                  minNumRegion = 3) 

@@ -8,6 +8,7 @@ suppressPackageStartupMessages({
   library(dplyr)
   library(viridis)
   library(annotatr)
+  library(bsseq)
 })
 
 
@@ -44,6 +45,15 @@ seqlevels(gr) <- paste0("chr",seqlevels(gr))
 #Fix some annotations
 colData(bsCombined)$state <- ifelse(is.na(colData(bsCombined)$state), 
                                     "Normal", colData(bsCombined)$state)
+
+colData(bsCombined)$state <- ifelse(grepl("SSA|Adenoma", colData(bsCombined)$lesion), 
+                                    colData(bsCombined)$lesion, colData(bsCombined)$state)
+
+colData(bsCombined)$state <- ifelse(grepl("Adenoma", colData(bsCombined)$state), 
+                                    gsub("Adenoma","cADN", colData(bsCombined)$state), 
+                                    colData(bsCombined)$state)
+
+
 seg <- ifelse(colData(bsCombined)$segment == "C","cecum", colData(bsCombined)$segment)
 seg <- ifelse(seg == "A","ascend", seg)
 
@@ -68,47 +78,83 @@ gr_dmr <- gr_sub %>%
 
 #### Get matrix for all normals ####
 idx <- colData(bsCombined)$state == "Normal" #select all normals
+#or
+idx <- rep(TRUE, ncol(bsCombined))
 agg <- as.matrix(gr_dmr)[,-1][1:200,idx] #choose number of DMRs
+
 #methsTR <- asin(2*agg-1)
+#scagg <- scale_exprs(agg)
 
-scagg <- scale_exprs(agg)
-
+#### Plotting supervised HM ####
 #Colors
 #my prefered color scheme
 col <- RColorBrewer::brewer.pal(n = 9, name = "YlGnBu")
 #col_fun <- circlize::colorRamp2(c(0, 0.5, 1), c(col[1], col[5], col[9]))
 
-#giancarlo schemes
-#col_fun <- viridis(50) #1
-col_fun <- circlize::colorRamp2(c(0,0.2,1), c(col[9], col[7], col_anot[6])) #2
-
-#annotation color
+#annotation colors
 col_anot <- RColorBrewer::brewer.pal(n = 9, name = "Set1")
 col_anot2 <- RColorBrewer::brewer.pal(n = 3, name = "Set2")
+
+#giancarlo schemes
+#col_fun <- viridis(50) #1
+col_fun <- circlize::colorRamp2(c(0,0.2,1), c(col[9], col[7], col_anot[6]))
+
 
 #HM Annotation
 column_ha <- HeatmapAnnotation(Age_group = colData(bsCombined)$age_group[idx], 
                               Segment = seg[idx],
-                              Tissue = colData(bsCombined)$lesion[idx],
+                              Condition = colData(bsCombined)$state[idx],
                               col = list(Age_group = c("<40" = col_anot2[1], 
                                                        "41-70"= col_anot2[2],
                                                        ">70"= col_anot2[3]),
                                          Segment = c("cecum" = col_anot[3], 
                                                      "sigmoid" = col_anot[4],
                                                      "ascend" = col_anot[5]),
-                                         Tissue = c("cecum_old" = col_anot[6],
-                                                    "cecum_young" = col_anot[7],
-                                                    "Normal_Adenoma"= col_anot[1],
-                                                    "Normal_SSA"= col_anot[2],
-                                                    "sigmoid_old"=col_anot[9],
-                                                    "sigmoid_young"=col_anot[8])))
+                                         # Tissue = c("cecum_old" = col_anot[6],
+                                         #            "cecum_young" = col_anot[7],
+                                         #            "Normal_Adenoma"= col_anot[1],
+                                         #            "Normal_SSA"= col_anot[2],
+                                         #            "sigmoid_old"=col_anot[9],
+                                         #            "sigmoid_young"=col_anot[8]))
+                                         Condition = c("Normal" = col_anot[6],
+                                                       "Normal_SSA" = col_anot[7],
+                                                       "Normal_cADN" = col_anot[1],
+                                                       "SSA" = col_anot[9],
+                                                       "cADN" = col_anot[8])
+                                         ),
+                              gp = gpar(col = "black"))
+
+# only normal annotation
+column_ha <- HeatmapAnnotation(Age_group = colData(bsCombined)$age_group[idx], 
+                               Segment = seg[idx],
+                               Condition = colData(bsCombined)$state[idx],
+                               col = list(Age_group = c("<40" = col_anot2[1], 
+                                                        "41-70"= col_anot2[2],
+                                                        ">70"= col_anot2[3]),
+                                          Segment = c("cecum" = col_anot[3], 
+                                                      "sigmoid" = col_anot[4],
+                                                      "ascend" = col_anot[5]),
+                                          # Tissue = c("cecum_old" = col_anot[6],
+                                          #            "cecum_young" = col_anot[7],
+                                          #            "Normal_Adenoma"= col_anot[1],
+                                          #            "Normal_SSA"= col_anot[2],
+                                          #            "sigmoid_old"=col_anot[9],
+                                          #            "sigmoid_young"=col_anot[8]))
+                                          Condition = c("Normal" = col_anot[6],
+                                                        "Normal_SSA" = col_anot[7],
+                                                        "Normal_cADN" = col_anot[1]
+                                                        #"SSA" = col_anot[9],
+                                                        #"cADN" = col_anot[8]
+                                                        )
+                               ),
+                               gp = gpar(col = "black"))
 
 #Plot
-pdf("figures/heatmap_agedmrs_plusnormals_splitsegment.pdf")
+pdf("figures/heatmap_agedmrs_allsamples.pdf")
 Heatmap(agg, 
         na_col = "white",
         #column_split = colData(bsCombined)$age_group[idx],
-        column_split = seg[idx],
+        #column_split = seg[idx],
         top_annotation = column_ha,
         clustering_distance_columns = "spearman",
         clustering_method_columns = "complete",
@@ -119,6 +165,7 @@ Heatmap(agg,
         row_title = "age related hyper-DMRs (200)", 
         column_title = "Samples",
         column_title_side = "bottom",
+        column_names_gp = gpar(fontsize = 8),
         heatmap_legend_param = list(title = "mean beta",
                                     grid_height = unit(1, "cm"),
                                     grid_width = unit(0.5, "cm"),
@@ -165,8 +212,8 @@ dev.off()
 
 #### most variable promoters? ####
 
-#annotsgene <- c("hg19_genes_promoters")
-annotsgene <- c("hg19_cpg_islands")
+annotsgene <- c("hg19_genes_promoters")
+#annotsgene <- c("hg19_cpg_islands")
 annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
 annotations_genes <- unique(annotations_genes)
 
@@ -189,21 +236,22 @@ gr_dmr <- gr_sub %>%
 # mad <- sweep(as.matrix(gr_dmr)[,-1], 1, med.att, FUN="-")
 # mads <- apply(mad, 1, function(x) median(abs(x)))
 
-idx <- colData(bsCombined)$state == "Normal"
+idx <- grepl("Normal", colData(bsCombined)$state)
+idx <- rep(TRUE, ncol(bsCombined))
 
 #madr <- apply(as.matrix(gr_dmr)[,-1][,idx], 1, mad)
 madr <- rowVars(as.matrix(gr_dmr)[,-1][,idx])
 o <- order(madr, decreasing = TRUE)
-agg <- as.matrix(gr_dmr)[o,-1][1:200,idx]
-methsTR <- asin(2*agg-1)
+agg <- as.matrix(gr_dmr)[o,-1][1:2000,idx]
+#methsTR <- asin(2*agg-1)
 
-pdf("figures/heatmap_200proms_plusnormals_splitsegment.pdf")
-Heatmap(
-        agg, 
+pdf("figures/heatmap_2000proms_allsamps_splitcond.pdf")
+Heatmap(agg, 
         #methsTR,
         na_col = "white",
         #column_split = colData(bsCombined)$age_group[idx],
-        column_split = seg[idx],
+        #column_split = seg[idx],
+        column_split = colData(bsCombined)$state[idx],
         top_annotation = column_ha,
         clustering_distance_columns = "spearman",
         clustering_method_columns = "complete",
@@ -211,9 +259,11 @@ Heatmap(
         cluster_rows = TRUE, 
         cluster_columns = TRUE,
         show_row_dend = FALSE,
-        row_title = "Most variable 200 CpG Islands", 
+        show_column_dend = FALSE,
+        row_title = "Most variable 2000 CpG promoters", 
         column_title = "Samples",
         column_title_side = "bottom",
+        column_names_gp = gpar(fontsize = 8),
         heatmap_legend_param = list(title = "mean beta value",
                                     grid_height = unit(1, "cm"),
                                     grid_width = unit(0.5, "cm"),

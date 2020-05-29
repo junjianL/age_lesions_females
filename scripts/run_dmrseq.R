@@ -7,6 +7,7 @@ suppressPackageStartupMessages({
   library(dplyr)
   library(ggplot2)
   library(annotatr)
+  library(BiocParallel)
 })
 
 source("scripts/get_table_with_annots.R")
