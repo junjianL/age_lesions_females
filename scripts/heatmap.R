@@ -57,7 +57,7 @@ colData(bsCombined)$age_group <- factor(age, levels = c("<40", "41-70", ">70"))
 #### Function to get matrix, to get annotations, calculate seriation, draw HM ####
 
 hm_build <- function(regions, sampleidx, numregs=2000, mostvar = FALSE, 
-                     annot = "all", split = "age_group", includeseg = FALSE,
+                     split = "age_group", includeseg = FALSE,
                      title = "Most variable 2000 CpG promoters"){
   
   hits <- findOverlaps(regions, gr)
@@ -81,6 +81,9 @@ hm_build <- function(regions, sampleidx, numregs=2000, mostvar = FALSE,
   } else agg <- as.matrix(gr_dmr)[,-1][1:numregs,sampleidx] 
 
   #seriation to order samples
+  agg[is.na(agg)] <- 0
+  agg[is.nan(agg)] <- 0
+  agg[is.infinite(agg)] <- 0
   
   ord <- seriation::get_order(seriation::seriate(dist(t(agg)), 
                                                  method = "MDS_angle"))
@@ -143,7 +146,7 @@ hm_build <- function(regions, sampleidx, numregs=2000, mostvar = FALSE,
           top_annotation = column_ha,
           col = col_fun,
           row_km = 2, 
-          clustering_distance_rows = "spearman",
+          #clustering_distance_rows = "spearman",
           cluster_columns = FALSE,
           show_row_dend = FALSE,
           show_column_dend = FALSE,
@@ -163,28 +166,19 @@ hm_build <- function(regions, sampleidx, numregs=2000, mostvar = FALSE,
 #### Plotting supervised HM ####
 
 #Get top regions
-load("data/DMRs_lesions_3.RData")
 load("data/DMRs_age_final.RData")
 
-
 #filtering
-DMRsles_annot$state <- ifelse(DMRsles_annot$beta > 0 & DMRsles_annot$qval < 0.05 , 
-                              "hyper", "none")
-DMRsles_annot$state <- ifelse(DMRsles_annot$beta < 0 & DMRsles_annot$qval < 0.05 , 
-                              "hypo", DMRsles_annot$state)
-
 DMRsage_annot$state <- ifelse(DMRsage_annot$beta > 0 & DMRsage_annot$qval < 0.05 , 
                               "hyper", "none")
 DMRsage_annot$state <- ifelse(DMRsage_annot$beta < 0 & DMRsage_annot$qval < 0.05 , 
                               "hypo", DMRsage_annot$state)
 
-idx <- colData(bsCombined)$state == "Normal" #select all normals
-#or
-idx <- rep(TRUE, ncol(bsCombined))
+idx <- colData(bsCombined)$state == "Normal"
 
-hm_build(DMRsage_annot[DMRsage_annot$state == "hyper"], idx, numregs= 100,
-         title = "Top 200 age-DMRs")
-
+hm_build(DMRsage_annot[DMRsage_annot$state == "hyper"], idx, numregs= 1000,
+         title = "Top 1000 age-DMRs", split = "age_group", includeseg = TRUE)
+dev.off()
 #### most variable promoters? ####
 
 annotsgene <- c("hg19_genes_promoters")
@@ -201,5 +195,24 @@ hm_build(annotations_genes, idx, numregs= 1000, split = "tissue",
 
 
 hm_build(annotations_genes, idx, numregs= 1000, split = "age_group",
-         title = "1000 most variable promoters", mostvar = TRUE, includeseg = TRUE)
+         title = "1000 most variable CpG Islands", mostvar = TRUE, includeseg = TRUE)
+#### horvath age probes ####
+annot450k <- readr::read_csv("data/HumanMethylation450_15017482_v1-2_edited.csv")
+
+#probes from hovarth
+probes <- read.csv("data/13059_2013_3156_MOESM3_ESM.csv", header = TRUE)
+
+#get buil 37 locations from annot450k
+cidx <- match(probes$CpGmarker, annot450k$Name)
+cidx <- cidx[!is.na(cidx)]
+chr <- annot450k$CHR[idx]
+pos <- annot450k$MAPINFO[idx]
+
+idx <- colData(bsCombined)$tissue == "healthy" #select all normals
+idx <- colData(bsCombined)$state == "Normal"
+
+probesgr <- GRanges(paste0("chr",chr), IRanges(start = pos-1, end = pos))
+
+hm_build(probesgr, idx, numregs= 317, split = "age_group",
+         title = "aging clock sites", includeseg = TRUE)
 
