@@ -35,30 +35,33 @@ colData(bsCombined)$state <- ifelse(grepl("Adenoma", colData(bsCombined)$state),
                                     gsub("Adenoma","cADN", colData(bsCombined)$state), 
                                     colData(bsCombined)$state)
 
+colData(bsCombined)$state <- ifelse(grepl("SSA", colData(bsCombined)$state), 
+                                    gsub("SSA","SSA/P", colData(bsCombined)$state), 
+                                    colData(bsCombined)$state)
+
 diagnosis <- ifelse(grepl("SSA|cADN", colData(bsCombined)$state), 
                                         colData(bsCombined)$state, "healthy")
 
 colData(bsCombined)$diagnosis <- factor(gsub("Normal_","",diagnosis), 
-                                        levels = c("healthy", "cADN", "SSA"))
+                                        levels = c("healthy", "cADN", "SSA/P"))
 
 colData(bsCombined)$tissue <- factor(ifelse(grepl("Normal", colData(bsCombined)$state), 
-                                     "healthy","pre-lesion"))
-
+                                     "normal mucosa","lesion"), levels = c("normal mucosa","lesion"))
 
 
 seg <- ifelse(colData(bsCombined)$segment == "C","cecum", colData(bsCombined)$segment)
-colData(bsCombined)$seg <- factor(ifelse(seg == "A","ascend", seg))
+colData(bsCombined)$seg <- factor(ifelse(seg == "A","ascend", seg), levels = c("sigmoid", "ascend", "cecum"))
 
 
-age <- ifelse(colData(bsCombined)$age < 40, "<40", "41-70")
+age <- ifelse(colData(bsCombined)$age < 40, "<=40", "41-70")
 age <- ifelse(colData(bsCombined)$age > 70, ">70", age)
-colData(bsCombined)$age_group <- factor(age, levels = c("<40", "41-70", ">70"))
+colData(bsCombined)$age_group <- factor(age, levels = c("<=40", "41-70", ">70"))
 
 #### Function to get matrix, to get annotations, calculate seriation, draw HM ####
 
 hm_build <- function(regions, sampleidx, numregs=2000, mostvar = FALSE, 
                      split = "age_group", includeseg = FALSE,
-                     title = "Most variable 2000 CpG promoters"){
+                     title = "Most variable 2000 CpG promoters", numgroups = 1){
   
   hits <- findOverlaps(regions, gr)
   gr$DMR <- NA
@@ -85,10 +88,17 @@ hm_build <- function(regions, sampleidx, numregs=2000, mostvar = FALSE,
   agg[is.nan(agg)] <- 0
   agg[is.infinite(agg)] <- 0
   
-  ord <- seriation::get_order(seriation::seriate(dist(t(agg)), 
-                                                 method = "MDS_angle"))
-                                                 #margin = 2))
-  agg <- agg[,ord]
+  #row annotation (meth change)
+  if (numgroups == 2) {
+  condit <- colData(bsCombined)[,split][idx]
+  conds <- as.character(unique(condit))
+  meth_change <- rowMeans(agg[,condit == conds[2]]) - rowMeans(agg[,condit == conds[1]])
+  }
+  
+  # ord <- seriation::get_order(seriation::seriate(dist(t(agg)), 
+  #                                                method = "MDS_angle"))
+  #                                                #margin = 2))
+  #agg <- agg[,ord]
   
   #Colors
   col <- RColorBrewer::brewer.pal(n = 9, name = "YlGnBu")
@@ -96,7 +106,7 @@ hm_build <- function(regions, sampleidx, numregs=2000, mostvar = FALSE,
   purples <- RColorBrewer::brewer.pal(n = 3, name = "Purples")
   oranges <- RColorBrewer::brewer.pal(n = 3, name = "Oranges")
   greens <- RColorBrewer::brewer.pal(n = 3, name = "Greens")
-  pinks <- RColorBrewer::brewer.pal(n = 3, name = "RdPu")
+  pinks <- RColorBrewer::brewer.pal(n = 4, name = "RdPu")[c(1,3:4)]
   
   #hm colors
   col_fun <- circlize::colorRamp2(c(0,0.2,1), c(col[9], col[7], col_anot[6]))
@@ -113,26 +123,32 @@ hm_build <- function(regions, sampleidx, numregs=2000, mostvar = FALSE,
   
   col_seg <- pinks[1:nlevels(colData(bsCombined)$seg[idx])]
   names(col_seg) <- levels(colData(bsCombined)$seg[idx])
-  #HM Annotation
-  # } 
-  # if (annot == "healthy") {
-  #   condition <- c("Normal" = col_anot[6])
-  # }
 
-  column_ha <- HeatmapAnnotation("Age group" = colData(bsCombined)$age_group[idx][ord], 
-                                 Diagnosis = colData(bsCombined)$diagnosis[idx][ord],
-                                 Tissue = colData(bsCombined)$tissue[idx][ord],
-                                 col = list("Age group" = col_age,
+  column_ha <- HeatmapAnnotation(Age = colData(bsCombined)$age_group[idx], #[ord] 
+                                 Diagnosis = colData(bsCombined)$diagnosis[idx], #[ord]
+                                 Tissue = colData(bsCombined)$tissue[idx], #[ord]
+                                 col = list(Age = col_age,
                                             Diagnosis = col_diag,
                                             Tissue = col_tis
-                                 ), gp = gpar(col = "black"))
+                                 ), 
+                                 gp = gpar(col = "black"))
   
+  if (numgroups == 2) {
+  row_ha <- rowAnnotation("Change" = anno_lines(meth_change, 
+                                              smooth = FALSE, #loess
+                                              add_points = FALSE,
+                                              axis_param = list(direction = "reverse",
+                                                                gp = gpar(fontsize = 5)
+                                                                )
+                                              ))
+  }
+
   if(includeseg) {
-    column_ha <- HeatmapAnnotation("Age group" = colData(bsCombined)$age_group[idx][ord], 
-                                   Segment = colData(bsCombined)$seg[idx][ord],
-                                   Diagnosis = colData(bsCombined)$diagnosis[idx][ord],
-                                   Tissue = colData(bsCombined)$tissue[idx][ord],
-                                   col = list("Age group" = col_age,
+    column_ha <- HeatmapAnnotation(Age = colData(bsCombined)$age_group[idx],#[ord]
+                                   Segment = colData(bsCombined)$seg[idx], #[ord]
+                                   Diagnosis = colData(bsCombined)$diagnosis[idx], #[ord]
+                                   Tissue = colData(bsCombined)$tissue[idx], #[ord]
+                                   col = list(Age = col_age,
                                               Diagnosis = col_diag,
                                               Tissue = col_tis,
                                               Segment = col_seg
@@ -142,23 +158,25 @@ hm_build <- function(regions, sampleidx, numregs=2000, mostvar = FALSE,
   #Plot
   hm <- Heatmap(agg, 
           na_col = "white",
-          column_split = colData(bsCombined)[,split][idx][ord],
+          column_split = colData(bsCombined)[,split][idx], #[ord]
           top_annotation = column_ha,
           col = col_fun,
           row_km = 2, 
-          #clustering_distance_rows = "spearman",
-          cluster_columns = FALSE,
+          clustering_distance_columns = "spearman",
+          cluster_columns = TRUE,
           show_row_dend = FALSE,
-          show_column_dend = FALSE,
+          show_column_dend = TRUE,
+          cluster_column_slices = FALSE,
+          #left_annotation = row_ha, ## remove with 3 groups
           row_title = title, 
           column_title = "Samples",
           column_title_side = "bottom",
           column_names_gp = gpar(fontsize = 8),
-          heatmap_legend_param = list(title = "mean beta-value",
+          heatmap_legend_param = list(title = "mean beta value",
+                                      title_position = "lefttop-rot",
                                       grid_height = unit(1, "cm"),
-                                      grid_width = unit(0.5, "cm"),
-                                      labels_gp = gpar(fontsize = 10)),
-          row_names_gp = gpar(fontsize = 12))
+                                      grid_width = unit(0.5, "cm")))
+                                      #labels_gp = gpar(fontsize = 6)))
   
   return(hm)
 }
@@ -182,20 +200,24 @@ dev.off()
 #### most variable promoters? ####
 
 annotsgene <- c("hg19_genes_promoters")
-#annotsgene <- c("hg19_cpg_islands")
+
+annotsgene <- c("hg19_cpg_islands")
+
 annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
-annotations_genes <- unique(annotations_genes)
+annotations_genes <- unique(annotations_genes) #unique transcripts, not genes
+annotations_genes <- annotations_genes[!duplicated(annotations_genes$gene_id)]
 
-idx <- colData(bsCombined)$tissue == "healthy" #select all normals
+idx <- colData(bsCombined)$tissue == "normal mucosa" #select all normals
 idx <- colData(bsCombined)$state == "Normal" #selet all healthy fems
-idx <- rep(TRUE, ncol(bsCombined))
+idx <- rep(TRUE, ncol(bsCombined)) # all samples
 
-hm_build(annotations_genes, idx, numregs= 1000, split = "tissue",
+hm_build(annotations_genes, idx, numregs= 1000, split = "tissue", includeseg = TRUE,
          title = "1000 most variable promoters", mostvar = TRUE)
 
 
-hm_build(annotations_genes, idx, numregs= 1000, split = "age_group",
-         title = "1000 most variable CpG Islands", mostvar = TRUE, includeseg = TRUE)
+hm_build(annotations_genes, idx, numregs= 1000, split = "age_group", numgroups = 1,
+         title = "1000 most variable promoters", mostvar = TRUE, includeseg = TRUE)
+
 #### horvath age probes ####
 annot450k <- readr::read_csv("data/HumanMethylation450_15017482_v1-2_edited.csv")
 

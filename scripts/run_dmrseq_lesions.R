@@ -192,6 +192,11 @@ DMRsles_annot <- get_table_with_annots(DMRsles_filt)
 
 #save files
 save(DMRsles_annot,file = "data/DMRs_lesions_3.RData")
+
+# gr <- rowRanges(bismarkBSseq)
+# seqlevels(gr) <- paste0("chr", seqlevels(gr))
+# DMRsles_annot$numCpGs <- countOverlaps(DMRsles_annot, gr)
+
 df <- as.data.frame(DMRsles_annot)
 write.table(df, file = "data/DMRs_lesions_3.txt", quote = FALSE, row.names = FALSE)
 
@@ -207,3 +212,43 @@ DMRsles.ssa <- dmrseq(bs=bs.ssa,
                   maxGap = 100,
                   maxGapSmooth = 1000,
                   minNumRegion = 3) 
+
+#Filter
+DMRsles_filt <- DMRsles.ssa[!is.na(DMRsles.ssa$qval)]
+#DMRsles_filt$beta <- -1 * DMRsles_filt$beta
+#DMRsles_filt$meth <- scale_beta(DMRsles_filt$beta)
+DMRsles_annot <- get_table_with_annots(DMRsles_filt)
+
+#add number of CpGs
+DMRsles_annot$numCpGs <- countOverlaps(DMRsles_filt, rowRanges(bismarkBSseq))
+
+
+#save files
+save(DMRsles_annot,file = "data/DMRs_lesions_SSA.RData")
+df <- as.data.frame(DMRsles_annot)
+write.table(df, file = "data/DMRs_lesions_SSA.txt", quote = FALSE, row.names = FALSE)
+
+#### only cADN ####
+bs.cadn <- bismarkBSseq[,grepl("Adenoma",colData(bismarkBSseq)$lesion)]
+colData(bs.cadn)$lesion <- factor(colData(bs.cadn)$lesion, levels = c("Normal_Adenoma", "Adenoma")) 
+set.seed(1234)
+DMRsles.cadn <- dmrseq(bs=bs.cadn,
+                      testCovariate="lesion", 
+                      cutoff = 0.05, 
+                      BPPARAM = MulticoreParam(4),
+                      adjustCovariate = "patient",
+                      maxPerms = 20,
+                      maxGap = 100,
+                      maxGapSmooth = 1000,
+                      minNumRegion = 3) 
+
+#Filter
+DMRsles_filt <- DMRsles.cadn[!is.na(DMRsles.cadn$qval)]
+#add number of CpGs
+DMRsles_filt$numCpGs <- countOverlaps(DMRsles_filt, rowRanges(bismarkBSseq))
+DMRsles_annot <- get_table_with_annots(DMRsles_filt)
+
+#save files
+save(DMRsles_annot,file = "data/DMRs_lesions_cADN.RData")
+df <- as.data.frame(DMRsles_annot)
+write.table(df, file = "data/DMRs_lesions_cADN.txt", quote = FALSE, row.names = FALSE)
