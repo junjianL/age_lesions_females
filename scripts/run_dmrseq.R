@@ -232,6 +232,8 @@ scale_beta <- function(u){
   # (u-min_u)/(max_u-min_u)
 }
 
+#Cecum
+
 colData(bismarkBSseq)$age_group <- relevel(factor(metadata$age_group), ref = "old")
 bsc <- bismarkBSseq[,metadata$segment == "cecum"]
 DMRsage_cecum <- dmrseq(bs=bsc,
@@ -244,7 +246,7 @@ DMRsage_cecum <- dmrseq(bs=bsc,
                         minNumRegion = 3)
 #DMRsage_cecum <- DMRsage_cecum[DMRsage_cecum$qval < 0.05] #697
 DMRsage_cecum$beta <- -1 * DMRsage_cecum$beta #31,145
-DMRsage_cecum$meth <- scale_beta(DMRsage_cecum$beta)
+#DMRsage_cecum$meth <- scale_beta(DMRsage_cecum$beta)
 DMRsage_cecum_annot <- get_table_with_annots(DMRsage_cecum)
 
 hist(DMRsage_cecum$beta)
@@ -256,7 +258,8 @@ df <- as.data.frame(DMRsage_cecum_annot)
 write.table(df, file = "data/DMRs_age_cecum_2.txt", quote = FALSE, row.names = FALSE)
 
 #Sigmoid
-#bss <- bismarkBSseq[,metadata$segment == "sigmoid"]
+
+bss <- bismarkBSseq[,metadata$segment == "sigmoid"]
 DMRsage_sig <- dmrseq(bs=bss,
                       testCovariate="age_group", 
                       cutoff = 0.05, 
@@ -275,7 +278,8 @@ save(DMRsage_sig_annot,file = "data/DMRs_age_sig_2.RData")
 df <- as.data.frame(DMRsage_sig_annot)
 write.table(df, file = "data/DMRs_age_sigmoid_2.txt", quote = FALSE, row.names = FALSE)
 
-#Use only segment as a covariate
+#All samples: Use segment as a covariate
+
 set.seed(1234)
 DMRsage <- dmrseq(bs=bismarkBSseq,
                   testCovariate="age_group", 
@@ -295,15 +299,38 @@ save(DMRsage_annot,file = "data/DMRs_age_final.RData")
 df <- as.data.frame(DMRsage_annot)
 write.table(df, file = "data/DMRs_age_final.txt", quote = FALSE, row.names = FALSE)
 
-
-#Test segment independent of age (only paired comparison here)
-DMRsseg <- dmrseq(bs=bismarkBSseq,
+# Only old 
+set.seed(1234)
+bso <- bismarkBSseq[,metadata$age_group == "old"]
+DMRsage_o <- dmrseq(bs=bso,
                   testCovariate="segment", 
                   cutoff = 0.05, 
                   BPPARAM = MulticoreParam(3),
-                  adjustCovariate = "patient",
                   maxPerms = 20,
                   maxGap = 100,
                   maxGapSmooth = 1000,
                   minNumRegion = 3)
 
+DMRsage_annot <- get_table_with_annots(DMRsage_o)
+save(DMRsage_annot,file = "data/DMRs_old.RData")
+
+df <- as.data.frame(DMRsage_annot)
+write.table(df, file = "data/DMRs_old.txt", quote = FALSE, row.names = FALSE)
+
+# Only young
+set.seed(1234)
+bsy <- bismarkBSseq[,metadata$age_group == "young"]
+DMRsage_y <- dmrseq(bs=bsy,
+                    testCovariate="segment", 
+                    cutoff = 0.05, 
+                    BPPARAM = MulticoreParam(3),
+                    maxPerms = 20,
+                    maxGap = 100,
+                    maxGapSmooth = 1000,
+                    minNumRegion = 3)
+
+DMRsage_annot <- get_table_with_annots(DMRsage_o)
+save(DMRsage_annot,file = "data/DMRs_old.RData")
+
+df <- as.data.frame(DMRsage_annot)
+write.table(df, file = "data/DMRs_old.txt", quote = FALSE, row.names = FALSE)
