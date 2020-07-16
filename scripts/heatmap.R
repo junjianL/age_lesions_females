@@ -158,10 +158,10 @@ hm_build <- function(regions, sampleidx, numregs=2000, mostvar = FALSE,
   #Plot
   hm <- Heatmap(agg, 
           na_col = "white",
-          column_split = colData(bsCombined)[,split][idx], #[ord]
+          #column_split = colData(bsCombined)[,split][idx], #[ord]
           top_annotation = column_ha,
           col = col_fun,
-          row_km = 2, 
+          #row_km = 2, 
           clustering_distance_columns = "spearman",
           cluster_columns = TRUE,
           show_row_dend = FALSE,
@@ -216,6 +216,10 @@ hm_build(annotations_genes, idx, numregs= 1000, split = "tissue", includeseg = T
 
 
 hm_build(annotations_genes, idx, numregs= 1000, split = "age_group", numgroups = 1,
+         title = "1000 most variable promoters", mostvar = TRUE, includeseg = TRUE)
+
+#no split
+hm_build(annotations_genes, idx, numregs= 1000, numgroups = 1,
          title = "1000 most variable promoters", mostvar = TRUE, includeseg = TRUE)
 
 #### horvath age probes ####

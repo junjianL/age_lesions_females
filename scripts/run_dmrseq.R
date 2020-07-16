@@ -329,8 +329,27 @@ DMRsage_y <- dmrseq(bs=bsy,
                     maxGapSmooth = 1000,
                     minNumRegion = 3)
 
-DMRsage_annot <- get_table_with_annots(DMRsage_o)
-save(DMRsage_annot,file = "data/DMRs_old.RData")
+DMRsage_annot <- get_table_with_annots(DMRsage_y)
+save(DMRsage_annot,file = "data/DMRs_young.RData")
 
 df <- as.data.frame(DMRsage_annot)
-write.table(df, file = "data/DMRs_old.txt", quote = FALSE, row.names = FALSE)
+write.table(df, file = "data/DMRs_young.txt", quote = FALSE, row.names = FALSE)
+
+# old and young together
+set.seed(1234)
+
+DMRsseg <- dmrseq(bs=bismarkBSseq,
+                    testCovariate="segment",
+                    adjustCovariate = "age_group",
+                    cutoff = 0.05, 
+                    BPPARAM = MulticoreParam(3),
+                    maxPerms = 20,
+                    maxGap = 100,
+                    maxGapSmooth = 1000,
+                    minNumRegion = 3)
+
+DMRsage_annot <- get_table_with_annots(DMRsseg)
+save(DMRsage_annot,file = "data/DMRs_segm.RData")
+
+df <- as.data.frame(DMRsage_annot)
+write.table(df, file = "data/DMRs_segm.txt", quote = FALSE, row.names = FALSE)
