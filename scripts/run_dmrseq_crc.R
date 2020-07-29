@@ -1,23 +1,29 @@
-## Run dmrseq lesions
-# nov 25 2019
+## Run dmrseq
+# oct 21 2019
 
 suppressPackageStartupMessages({
   library(dmrseq)
   library(dplyr)
   library(ggplot2)
+  library(annotatr)
   library(BiocParallel)
 })
 
 source("scripts/get_table_with_annots.R")
-metafile <- "data/metadata_serrated.txt" #36 samples, 18 patients
+metafile <- "data/metadata_crc.txt"
 #print(metafile)
+folder <- "/home/Shared_s3it/sorjuela/CRC_outputs"
+
 
 #Read in metadata
 metadata <- read.delim(metafile, header = TRUE, as.is = TRUE, sep = "\t")
-infile <- sprintf("data/methextract_lesions/%s_pe.CpG_report.txt", metadata$names)
+infile <- file.path(folder, "methextract",sprintf("%s_pe.CpG_report.txt", metadata$names))
+#infile2 <- sprintf("data/methextract/%s_pe.bismark.cov.gz", metadata$names)
 
-metadata$age_group <- ifelse(metadata$age > 50, "old", "young")
-metadata$state <- ifelse(grepl("Normal", metadata$lesion), "Normal", "Cancer")
+#metadata$patient <- gsub("[0-9]+\\.A-", "", metadata$names)
+#metadata$patient <- gsub("_[a-z]+","",metadata$patient)
+
+metadata$age_group <- ifelse(metadata$age > 40, "old", "young")
 
 
 #Read in cov files
@@ -29,26 +35,30 @@ bismarkBSseq <- read.bismark(files = infile,
                              BPPARAM = MulticoreParam(1),
                              nThread = 1,
                              BACKEND = "HDF5Array",
-                             dir = "data/HDF5_lesion",
-                             replace = TRUE) #27,546,598
+                             dir = "data/HDF5_cov_crc",
+                             replace = TRUE) 
 
-save(bismarkBSseq, file = "data/bsseq_lesions_cpgreport.RData")
+save(bismarkBSseq, file = "data/bsseq_cpgreport.RData")
+#load("data/bsseq_cpgreport.RData")
 
 #Filter coverage low
-loci.idx <- DelayedMatrixStats::rowSums2(getCoverage(bismarkBSseq, type="Cov") >= 10 ) >= 28
-bismarkBSseq <- bismarkBSseq[loci.idx,] #2,773,805
+loci.idx <- DelayedMatrixStats::rowSums2(getCoverage(bismarkBSseq, type="Cov") >= 10 ) >= 10
+bismarkBSseq <- bismarkBSseq[loci.idx,] 
 
 #Filter chrom X,Y and weird ones
 loci.idx <- seqnames(bismarkBSseq) %in% c(1:22)
-bismarkBSseq <- bismarkBSseq[loci.idx,] #2,703,961
+bismarkBSseq <- bismarkBSseq[loci.idx,] #2,853,792
 
-#Filter/reduce coverage high
+#Filter/reduce coverage high (test)
+#loci.idx <- DelayedMatrixStats::rowSums2(getCoverage(bismarkBSseq, type="Cov") <= 200 ) == 36
+#bismarkBSseq <- bismarkBSseq[loci.idx,] 
 
+#or from BiSeq
 cov <- getCoverage(bismarkBSseq, type = "Cov")
 meth <- getCoverage(bismarkBSseq, type = "M")
 ind.cov <- cov > 0
 quant <- quantile(cov[ind.cov], 0.9)
-quant #92 
+quant  
 
 limitCov <- function(cov, meth, maxCov, object){
   cov <- as.matrix(cov)
@@ -66,8 +76,7 @@ limitCov <- function(cov, meth, maxCov, object){
 }
 
 bismarkBSseq <- limitCov(cov, meth, quant, bismarkBSseq)
-
-save(bismarkBSseq, file = "data/bsseq_lesions_filt.RData")
+colData(bismarkBSseq)$age_group <- as.factor(colData(bismarkBSseq)$age_group)
 
 #Generate bws
 cov <- getCoverage(bismarkBSseq, type = "Cov")
@@ -116,7 +125,7 @@ sapply(colnames(meth_vals), make_bigwigs,
        bs = bismarkBSseq, 
        meth_vals = meth_vals,
        folder = ".", 
-       chromsizesFile = "/home/Shared_taupo/steph/reference/hg19.chrom.sizes.modGL")
+       chromsizesFile = "/home/Shared_taupo/stephany/reference/hg19.chrom.sizes.modGL")
 
 
 #Get diagnostics
@@ -130,19 +139,29 @@ d <- data.frame(mean_meth = mean_meth,
                 var_meth = var_meth)
 
 #mean meth Vs mean cov
-# ggplot(d) + geom_point(aes(x= mean_cov, y = mean_meth), alpha = 0.1) + 
-#   geom_density_2d(aes(x= mean_cov, y = mean_meth)) +
-#   theme_bw()
-
 ggplot(d) + aes(x=mean_cov, y=mean_meth) + 
   geom_bin2d() + 
   scale_fill_distiller(palette='RdBu', trans='log10') + 
   scale_x_continuous(breaks=scales::pretty_breaks()) +
   theme_bw()
+ggsave("figures/covVsmeth_crc.png")
 
-ggsave("figures/covVsmeth_lesions2.png")
+#MDS
+meth_vals <- meth /cov
+methsTR <- asin(2*meth_vals-1)
+#bad <- rowSums(is.finite(methsTR)) < ncol(methsTR)
+#if(any(bad)) methsTR <- methsTR[!bad,,drop=FALSE]
 
-#MD  
+mds_meth <- limma::plotMDS(methsTR, top = 10000, plot = FALSE)$cmdscale.out
+
+df <- data.frame(dim1 = mds_meth[,1], dim2 = mds_meth[,2],
+                 names = colnames(meth_vals), treat = metadata$age_group)
+
+ggplot()+
+  geom_point(data = df, mapping = aes_(x=~dim1, y=~dim2, color=~treat)) +
+  geom_text(data = df, mapping = aes_(x=~dim1, y=~dim2-0.01, label=~names)) +
+  theme_bw()
+ggsave("figures/MDS_top10mil_crc.png")
 
 #MV
 ggplot(d) + aes(x=mean_cov, y=var_meth) + 
@@ -150,7 +169,7 @@ ggplot(d) + aes(x=mean_cov, y=var_meth) +
   scale_fill_distiller(palette='RdBu', trans='log10') + 
   scale_x_continuous(breaks=scales::pretty_breaks()) +
   theme_bw()
-ggsave("figures/meanVsvar_lesions2.png")
+ggsave("figures/meanVsvar_crc.png")
 
 #meth per sample
 pos <- paste0(seqnames(bismarkBSseq),".", start(bismarkBSseq))
@@ -161,78 +180,51 @@ meth_vals_melt <- reshape2::melt(meth_vals, id.vars = "pos", measure.vars = meta
 ggplot(meth_vals_melt) + geom_violin(aes(x = variable, y = value)) +
   theme_bw() +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
-ggsave("figures/meth_violins_lesions.png")
+ggsave("figures/meth_violins_crc.png")
 
 
-## Run dmrseq
+#### Run dmrseq ####
+#scale beta func
+
+#nonCIMP
+
+bsn <- bismarkBSseq[,grepl("non",metadata$lesion)]
 set.seed(1234)
-DMRsles <- dmrseq(bs=bismarkBSseq,
-                  testCovariate="state", 
-                  cutoff = 0.05, 
-                  BPPARAM = MulticoreParam(3),
-                  adjustCovariate = "patient",
-                  maxPerms = 20,
-                  maxGap = 100,
-                  maxGapSmooth = 1000,
-                  minNumRegion = 3) #55,186
+DMRsage_non <- dmrseq(bs=bsn,
+                        testCovariate="lesion", 
+                        cutoff = 0.05, 
+                        BPPARAM = MulticoreParam(1),
+                        adjustCovariate = "patient",
+                        maxGap = 100,
+                        maxGapSmooth = 1000,
+                        matchCovariate = "gender",
+                        minNumRegion = 3)
 
-#Filter
-DMRsles_filt <- DMRsles[!is.na(DMRsles$qval)] #55,128
-DMRsles_filt$beta <- -1 * DMRsles_filt$beta
-DMRsles_filt$meth <- scale_beta(DMRsles_filt$beta)
-DMRsles_annot <- get_table_with_annots(DMRsles_filt)
 
-#save files
-save(DMRsles_annot,file = "data/DMRs_lesions_3.RData")
+DMRs_annot <- get_table_with_annots(DMRsage_non)
+save(DMRs_annot,file = "data/DMRs_nonCIMP.RData")
 
-df <- as.data.frame(DMRsles_annot)
-write.table(df, file = "data/DMRs_lesions_3.txt", quote = FALSE, row.names = FALSE)
+df <- as.data.frame(DMRs_annot)
+write.table(df, file = "data/DMRs_nonCIMP.txt", quote = FALSE, row.names = FALSE)
 
-#### only SSA ####
-bs.ssa <- bismarkBSseq[,grepl("SSA",colData(bismarkBSseq)$lesion)]
+#CIMP
+bsc <- bismarkBSseq[,!grepl("non",metadata$lesion)]
 set.seed(1234)
-DMRsles.ssa <- dmrseq(bs=bs.ssa,
-                  testCovariate="lesion", 
-                  cutoff = 0.05, 
-                  BPPARAM = MulticoreParam(4),
-                  adjustCovariate = "patient",
-                  maxPerms = 20,
-                  maxGap = 100,
-                  maxGapSmooth = 1000,
-                  minNumRegion = 3) 
-
-#Filter
-DMRsles_filt <- DMRsles.ssa[!is.na(DMRsles.ssa$qval)]
-DMRsles_annot <- get_table_with_annots(DMRsles_filt)
-
-#add number of CpGs
-DMRsles_annot$numCpGs <- countOverlaps(DMRsles_filt, rowRanges(bismarkBSseq))
-
-
-#save files
-save(DMRsles_annot,file = "data/DMRs_lesions_SSA.RData")
-df <- as.data.frame(DMRsles_annot)
-write.table(df, file = "data/DMRs_lesions_SSA.txt", quote = FALSE, row.names = FALSE)
-
-#### only cADN ####
-bs.cadn <- bismarkBSseq[,grepl("Adenoma",colData(bismarkBSseq)$lesion)]
-colData(bs.cadn)$lesion <- factor(colData(bs.cadn)$lesion, levels = c("Normal_Adenoma", "Adenoma")) 
-set.seed(1234)
-DMRsles.cadn <- dmrseq(bs=bs.cadn,
+DMRs_cimp <- dmrseq(bs=bsc,
                       testCovariate="lesion", 
                       cutoff = 0.05, 
-                      BPPARAM = MulticoreParam(4),
+                      BPPARAM = MulticoreParam(1),
                       adjustCovariate = "patient",
-                      maxPerms = 20,
                       maxGap = 100,
                       maxGapSmooth = 1000,
-                      minNumRegion = 3) 
+                      matchCovariate = "gender",
+                      minNumRegion = 3)
 
-#Filter
-DMRsles_filt <- DMRsles.cadn[!is.na(DMRsles.cadn$qval)]
-DMRsles_annot <- get_table_with_annots(DMRsles_filt)
 
-#save files
-save(DMRsles_annot,file = "data/DMRs_lesions_cADN.RData")
-df <- as.data.frame(DMRsles_annot)
-write.table(df, file = "data/DMRs_lesions_cADN.txt", quote = FALSE, row.names = FALSE)
+DMRs_annot <- get_table_with_annots(DMRs_cimp)
+save(DMRs_annot,file = "data/DMRs_CIMP.RData")
+
+df <- as.data.frame(DMRs_annot)
+write.table(df, file = "data/DMRs_CIMP.txt", quote = FALSE, row.names = FALSE)
+
+

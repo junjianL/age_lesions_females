@@ -112,18 +112,31 @@ custom_func <- function(data, mapping){
     #geom_density_2d(color = "orange")
     geom_bin2d() +
     scale_fill_distiller(palette='RdBu', trans='log10') +
-    scale_x_continuous(breaks=scales::pretty_breaks())
+    scale_x_continuous(limits = c(-0.6,0.8)) +
+    scale_y_continuous(limits = c(-0.6,0.9)) 
 }
-GGally::ggpairs(df, upper = NULL,
-                lower = list(continuous = custom_func))
+
+custom_func2 <- function(data, mapping){
+  ggplot(data = data, mapping = mapping) +
+    geom_density() +
+    scale_x_continuous(limits = c(-0.6,0.8)) +
+    scale_y_sqrt(limits = c(0,120))
+}
+
+GGally::ggpairs(df, 
+                upper = list(continuous = custom_func2),
+                lower = list(continuous = custom_func),
+                diag = list(na = "naDiag"))
 
 ## within genomic compartments
 
+#promoters
 annotsgene <- c("hg19_genes_promoters")
 annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
 annotations_genes <- unique(annotations_genes) #unique transcripts, not genes
 annotations_genes <- annotations_genes[!duplicated(annotations_genes$gene_id)]
 
+#islands
 annotsgene <- c("hg19_cpg_islands")
 annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
 
@@ -146,6 +159,9 @@ ggplot(e3) +
         text = element_text(size = 15),
         legend.position = "none")
 
-GGally::ggpairs(df_proms, upper = NULL,
-                lower = list(continuous = custom_func))
+GGally::ggpairs(df_proms,
+                upper = NULL,
+                lower = list(continuous = custom_func),
+                diag = list(continuous = custom_func2)) +
+  theme_bw()
 

@@ -8,24 +8,68 @@ suppressPackageStartupMessages({
 })
 
 
-#### Get unique regions for each segment ####
-load("data/DMRs_age_cecum_2.RData")
+#### Get regions that are uniquely in pre-lesions ####
+
+cutoff <- 0.05
+
+# get all combinations of lesion comparisons
+
+load("data/DMRs_lesions_3.RData")
+full <- sort(DMRsles_annot[DMRsles_annot$qval <= cutoff & DMRsles_annot$beta > 0])
+full$comparison <- "SSA+cADN"
+load("data/DMRs_lesions_SSA.RData")
+ssa <- sort(DMRsles_annot[DMRsles_annot$qval <= cutoff & DMRsles_annot$beta > 0])
+ssa$comparison <- "SSA"
+load("data/DMRs_lesions_cADN.RData")
+cadn <- sort(DMRsles_annot[DMRsles_annot$qval <= cutoff & DMRsles_annot$beta > 0])
+cadn$comparison <- "cADN"
+rm(DMRsles_annot)
+
+les_source <- c(full,ssa,cadn)
+o <- order(les_source$qval)
+les_source <- les_source[o]
+#les <- reduce(les_source, with.revmap=TRUE)
+
+# get all combinations of age comparisons
+
+load("data/DMRs_age_final.RData")
+full <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff & DMRsage_annot$beta > 0])
 load("data/DMRs_age_sig_2.RData")
+sig <- sort(DMRsage_sig_annot[DMRsage_sig_annot$qval <= cutoff & DMRsage_sig_annot$beta > 0])
+load("data/DMRs_age_cecum_2.RData")
+cec <- sort(DMRsage_cecum_annot[DMRsage_cecum_annot$qval <= cutoff & DMRsage_cecum_annot$beta > 0])
 
-#Filter
+age <- c(full, sig, cec)
+age <- reduce(age)
 
-DMRsage_sig <- DMRsage_sig_annot[DMRsage_sig_annot$qval < 0.05] #112
-DMRsage_cecum <- DMRsage_cecum_annot[DMRsage_cecum_annot$qval < 0.05] #697
+#get all combinations of segment comparisons
 
-#Filter and save files
-cecum_uniq <- subsetByOverlaps(DMRsage_cecum, DMRsage_sig, invert = TRUE) #632, 651
-sig_uniq <- subsetByOverlaps(DMRsage_sig, DMRsage_cecum, invert = TRUE) #66
+load("data/DMRs_segm.RData")
+full <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff & DMRsage_annot$beta > 0])
+load("data/DMRs_young.RData")
+young <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff & DMRsage_annot$beta > 0])
+load("data/DMRs_old.RData")
+old <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff & DMRsage_annot$beta > 0])
+rm(DMRsage_annot, DMRsage_cecum_annot, DMRsage_sig_annot)
 
-df <- as.data.frame(cecum_uniq)
-write.table(df, file = "data/DMRs_unique_cecum.txt", quote = FALSE, row.names = FALSE)
+seg <- c(full, young, old)
+seg <- reduce(seg)
 
-df <- as.data.frame(sig_uniq)
-write.table(df, file = "data/DMRs_unique_sigmoid.txt", quote = FALSE, row.names = FALSE)
+age_seg <- c(age, seg)
+age_seg <- reduce(age_seg)
+
+#get lesion regions without age or segment signal
+
+unique_less <- subsetByOverlaps(les_source, age_seg, invert = TRUE)
+unique_less
+save(unique_less,file = sprintf("data/uniqueDMRs_lesion_%g.RData", cutoff))
+
+df <- as.data.frame(unique_less)
+write.table(df, file = sprintf("data/uniqueDMRs_lesion_%g.txt",cutoff), 
+            quote = FALSE, row.names = FALSE)
+
+
+#### Upset plots ####
 
 #Try ComplexHeatmap for upsets
 
@@ -113,58 +157,3 @@ upset_withnumbers(m, "#3b56d8", c("Cecum (Old Vs Young)", "Sigmoid (Old Vs Young
 dev.off()
 
 
-#### Overlap with lesion DMRs ####
-
-load("data/DMRs_lesions_2.RData")
-load("data/DMRs_age_2.RData")
-DMRsage <- DMRsage_annot[DMRsage_annot$qval < 0.05]
-DMRsles <- DMRsles_annot[DMRsles_annot$qval < 0.07]
-length(DMRsles)
-#upset test, all 4 granges, sets are base pairs
-peak_list <- list(Cecum = DMRsage_cecum, 
-                  Sigmoid = DMRsage_sig, 
-                  Segments = DMRsage,
-                  Lesions = DMRsles)
-
-m2 = make_comb_mat(peak_list)
-
-pdf("figures/upset_full_bps.pdf", width = 8, height = 6)
-upset_withnumbers(m2, "black", c("Lesions","Segments","Cecum","Sigmoid"))
-dev.off()
-
-#lesions and age regions
-mat <- makeUpsetTable(DMRsles,DMRsage, c("Lesions (Vs Normal)", "Segments (Old Vs Young)"))
-m <- make_comb_mat(mat)
-pdf("figures/upset_lesionsVssegments.pdf",width = 6, height = 5)
-upset_withnumbers(m, "black",c("Lesions (Vs Normal)", "Segments (Old Vs Young)"))
-dev.off()
-
-
-#split by hyper and hypo
-DMRsage_hyper <- DMRsage[DMRsage$beta > 0] 
-DMRsage_hypo <- DMRsage[DMRsage$beta < 0] 
-
-DMRsles_hyper <- DMRsles[DMRsles$beta > 0]
-DMRsles_hypo <- DMRsles[DMRsles$beta < 0] 
-
-mat_hyper <- makeUpsetTable(DMRsles_hyper, DMRsage_hyper,
-                            c("Lesions (Vs Normal)", "Segments (Old Vs Young)"))
-mat_hypo <- makeUpsetTable(DMRsles_hypo, DMRsage_hypo,
-                           c("Lesions (Vs Normal)", "Segments (Old Vs Young)"))
-
-m <- make_comb_mat(mat_hyper)
-m0 <- make_comb_mat(mat_hypo)
-pdf("figures/upset_lesionsVssegments_hyper_hypo.pdf",width = 6, height = 5)
-upset_withnumbers(m, "#e1cf22", c("Lesions (Vs Normal)", "Segments (Old Vs Young)"))
-upset_withnumbers(m0, "#3b56d8", c("Lesions (Vs Normal)", "Segments (Old Vs Young)"))
-dev.off()
-
-#Filter and save files
-age_uniq <- subsetByOverlaps(DMRsage, DMRsles, invert = TRUE) 
-lesions_uniq <- subsetByOverlaps(DMRsles, DMRsage, invert = TRUE) 
-
-df <- as.data.frame(age_uniq)
-write.table(df, file = "data/DMRs_age_not_in_lesions.txt", quote = FALSE, row.names = FALSE)
-
-df <- as.data.frame(lesions_uniq)
-write.table(df, file = "data/DMRs_lesions_not_in_age.txt", quote = FALSE, row.names = FALSE)
