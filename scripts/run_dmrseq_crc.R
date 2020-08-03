@@ -202,6 +202,7 @@ DMRsage_non <- dmrseq(bs=bsn,
 
 
 DMRs_annot <- get_table_with_annots(DMRsage_non)
+DMRs_annot$beta <- -DMRs_annot$beta
 save(DMRs_annot,file = "data/DMRs_nonCIMP.RData")
 
 df <- as.data.frame(DMRs_annot)
@@ -222,9 +223,30 @@ DMRs_cimp <- dmrseq(bs=bsc,
 
 
 DMRs_annot <- get_table_with_annots(DMRs_cimp)
+DMRs_annot$beta <- -DMRs_annot$beta
 save(DMRs_annot,file = "data/DMRs_CIMP.RData")
 
 df <- as.data.frame(DMRs_annot)
 write.table(df, file = "data/DMRs_CIMP.txt", quote = FALSE, row.names = FALSE)
 
+#both CRCs
+colData(bismarkBSseq)$tissue <- ifelse(grepl("Normal", bismarkBSseq$lesion), 
+                                       "Normal", "CRC")
+set.seed(1234)
+DMRs_cimp <- dmrseq(bs=bismarkBSseq,
+                    testCovariate="tissue", 
+                    cutoff = 0.05, 
+                    BPPARAM = MulticoreParam(4),
+                    adjustCovariate = "patient",
+                    maxGap = 100,
+                    maxGapSmooth = 1000,
+                    matchCovariate = "gender",
+                    minNumRegion = 3)
 
+
+DMRs_annot <- get_table_with_annots(DMRs_cimp)
+DMRs_annot$beta <- -DMRs_annot$beta
+save(DMRs_annot,file = "data/DMRs_allCRC.RData")
+
+df <- as.data.frame(DMRs_annot)
+write.table(df, file = "data/DMRs_allCRC.txt", quote = FALSE, row.names = FALSE)

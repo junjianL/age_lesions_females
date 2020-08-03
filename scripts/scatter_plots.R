@@ -9,7 +9,7 @@ suppressPackageStartupMessages({
 
 
 #### load combined object ####
-load("data/bsseqCombined.RData")
+load("data/rdata/bsseqCombined.RData")
 
 
 #Get meth table
@@ -18,44 +18,7 @@ cov <- getCoverage(bsCombined, type = "Cov")
 meth <- getCoverage(bsCombined, type = "M")
 seqlevels(gr) <- paste0("chr",seqlevels(gr))
 
-#Fix some annotations
-colData(bsCombined)$state <- ifelse(is.na(colData(bsCombined)$state), 
-                                    "Normal", colData(bsCombined)$state)
-
-colData(bsCombined)$state <- ifelse(grepl("SSA|Adenoma", colData(bsCombined)$lesion), 
-                                    colData(bsCombined)$lesion, colData(bsCombined)$state)
-
-colData(bsCombined)$state <- ifelse(grepl("Adenoma", colData(bsCombined)$state), 
-                                    gsub("Adenoma","cADN", colData(bsCombined)$state), 
-                                    colData(bsCombined)$state)
-
-colData(bsCombined)$state <- ifelse(grepl("SSA", colData(bsCombined)$state), 
-                                    gsub("SSA","SSA/P", colData(bsCombined)$state), 
-                                    colData(bsCombined)$state)
-
-diagnosis <- ifelse(grepl("SSA|cADN", colData(bsCombined)$state), 
-                    colData(bsCombined)$state, "healthy")
-
-colData(bsCombined)$diagnosis <- factor(gsub("Normal_","",diagnosis), 
-                                        levels = c("healthy", "cADN", "SSA/P"))
-
-colData(bsCombined)$tissue <- factor(ifelse(grepl("Normal", colData(bsCombined)$state), 
-                                            "normal mucosa","lesion"), levels = c("normal mucosa","lesion"))
-
-
-seg <- ifelse(colData(bsCombined)$segment == "C","cecum", colData(bsCombined)$segment)
-colData(bsCombined)$seg <- factor(ifelse(seg == "A","ascend", seg), levels = c("sigmoid", "ascend", "cecum"))
-
-
-age <- ifelse(colData(bsCombined)$age < 40, "<=40", "41-70")
-age <- ifelse(colData(bsCombined)$age > 70, ">70", age)
-colData(bsCombined)$age_group <- factor(age, levels = c("<=40", "41-70", ">70"))
-
-colnames(meth_vals) <- paste0(colData(bsCombined)$patient,".",colData(bsCombined)$lesion)
-mcols(gr) <- meth_vals
-seqlevels(gr) <- paste0("chr",seqlevels(gr))
-
-#### Plot violins of effect sizes ####
+#### Plot effect sizes ####
 # in dmrseq this is defines as:
 # The estimate of the mean methylation proportion is for loci i in condition s 
 # is taken to be the sum of methylated reads from all samples in that condition 
@@ -85,24 +48,6 @@ df <- data.frame("SSA/P" = ssa,
                  cADN = cadn,
                  Age = age,
                  Segment = seg)
-
-e3 <- tidyr::gather(df, Contrast, Change)
-e3$Contrast <- factor(e3$Contrast, levels = c("SSA.P", "cADN", "Age", "Segment"))
-
-
-
-ggplot(e3) +
-  geom_violin(aes(x=Contrast, y=asin(2*Change-1)) , fill = "yellow"
-              ) +# scale = "width") +
-  geom_boxplot(aes(x=Contrast, y=asin(2*Change-1)), color = "grey",
-               alpha = 0) +
-  #scale_y_continuous(trans='log10') +
-  #scale_fill_manual(values = myColor) +
-  #scale_color_manual(values = myColor) +
-  theme_bw() +
-  theme(strip.background = element_rect(colour = "black", fill = "white"),
-        text = element_text(size = 15),
-        legend.position = "none")
 
 # pairs
 

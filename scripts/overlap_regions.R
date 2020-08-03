@@ -10,17 +10,17 @@ suppressPackageStartupMessages({
 
 #### Get regions that are uniquely in pre-lesions ####
 
-cutoff <- 0.05
+cutoff <- 0.1
 
 # get all combinations of lesion comparisons
 
-load("data/DMRs_lesions_3.RData")
+load("data/rdata/DMRs_lesions_3.RData")
 full <- sort(DMRsles_annot[DMRsles_annot$qval <= cutoff & DMRsles_annot$beta > 0])
 full$comparison <- "SSA+cADN"
-load("data/DMRs_lesions_SSA.RData")
+load("data/rdata/DMRs_lesions_SSA.RData")
 ssa <- sort(DMRsles_annot[DMRsles_annot$qval <= cutoff & DMRsles_annot$beta > 0])
 ssa$comparison <- "SSA"
-load("data/DMRs_lesions_cADN.RData")
+load("data/rdata/DMRs_lesions_cADN.RData")
 cadn <- sort(DMRsles_annot[DMRsles_annot$qval <= cutoff & DMRsles_annot$beta > 0])
 cadn$comparison <- "cADN"
 rm(DMRsles_annot)
@@ -28,28 +28,28 @@ rm(DMRsles_annot)
 les_source <- c(full,ssa,cadn)
 o <- order(les_source$qval)
 les_source <- les_source[o]
-#les <- reduce(les_source, with.revmap=TRUE)
+les <- reduce(les_source, with.revmap=TRUE)
 
 # get all combinations of age comparisons
 
-load("data/DMRs_age_final.RData")
-full <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff & DMRsage_annot$beta > 0])
-load("data/DMRs_age_sig_2.RData")
-sig <- sort(DMRsage_sig_annot[DMRsage_sig_annot$qval <= cutoff & DMRsage_sig_annot$beta > 0])
-load("data/DMRs_age_cecum_2.RData")
-cec <- sort(DMRsage_cecum_annot[DMRsage_cecum_annot$qval <= cutoff & DMRsage_cecum_annot$beta > 0])
+load("data/rdata/DMRs_age_final.RData")
+full <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff])
+load("data/rdata/DMRs_age_sig_2.RData")
+sig <- sort(DMRsage_sig_annot[DMRsage_sig_annot$qval <= cutoff])
+load("data/rdata/DMRs_age_cecum_2.RData")
+cec <- sort(DMRsage_cecum_annot[DMRsage_cecum_annot$qval <= cutoff])
 
 age <- c(full, sig, cec)
 age <- reduce(age)
 
 #get all combinations of segment comparisons
 
-load("data/DMRs_segm.RData")
-full <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff & DMRsage_annot$beta > 0])
-load("data/DMRs_young.RData")
-young <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff & DMRsage_annot$beta > 0])
-load("data/DMRs_old.RData")
-old <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff & DMRsage_annot$beta > 0])
+load("data/rdata/DMRs_segm.RData")
+full <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff])
+load("data/rdata/DMRs_young.RData")
+young <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff])
+load("data/rdata/DMRs_old.RData")
+old <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff])
 rm(DMRsage_annot, DMRsage_cecum_annot, DMRsage_sig_annot)
 
 seg <- c(full, young, old)
@@ -62,11 +62,22 @@ age_seg <- reduce(age_seg)
 
 unique_less <- subsetByOverlaps(les_source, age_seg, invert = TRUE)
 unique_less
-save(unique_less,file = sprintf("data/uniqueDMRs_lesion_%g.RData", cutoff))
+save(unique_less,file = sprintf("data/rdata/uniqueDMRs_lesion_%g.RData", cutoff))
 
 df <- as.data.frame(unique_less)
-write.table(df, file = sprintf("data/uniqueDMRs_lesion_%g.txt",cutoff), 
+write.table(df, file = sprintf("data/tables/uniqueDMRs_lesion_%g.txt",cutoff), 
             quote = FALSE, row.names = FALSE)
+
+
+# merged
+unique_less <- subsetByOverlaps(les, age_seg, invert = TRUE)
+unique_less
+save(unique_less,file = sprintf("data/rdata/uniqueDMRs_lesion_merged_%g.RData", cutoff))
+
+df <- as.data.frame(unique_less)
+write.table(df, file = sprintf("data/tables/uniqueDMRs_lesion_merged_%g.txt",cutoff), 
+            quote = FALSE, row.names = FALSE)
+
 
 
 #### Upset plots ####
