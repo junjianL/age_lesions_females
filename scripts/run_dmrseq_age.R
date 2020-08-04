@@ -22,7 +22,7 @@ infile <- sprintf("data/methextract/%s_pe.CpG_report.txt", metadata$names)
 #metadata$patient <- gsub("[0-9]+\\.A-", "", metadata$names)
 #metadata$patient <- gsub("_[a-z]+","",metadata$patient)
 
-metadata$age_group <- ifelse(metadata$age > 40, "old", "young")
+metadata$age_group <- ifelse(metadata$age > 50, "old", "young")
 
 
 #Read in cov files
