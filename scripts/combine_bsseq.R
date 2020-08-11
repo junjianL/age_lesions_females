@@ -13,7 +13,7 @@ bsCombined <- combineList(bsList)
 loci.idx <- DelayedMatrixStats::rowSums2(getCoverage(bsCombined, type="Cov") >= 10 ) >= 38
 bsCombined <- bsCombined[loci.idx,]
 
-save(bsCombined, file = "data/bsseqCombined.RData")
+save(bsCombined, file = "data/rdata/bsseqCombined.RData")
 
 #Get Cov and meth
 cov <- getCoverage(bsCombined, type = "Cov")

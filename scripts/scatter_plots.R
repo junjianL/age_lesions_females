@@ -5,6 +5,7 @@ suppressPackageStartupMessages({
   library(GenomicRanges)
   library(bsseq)
   library(ggplot2)
+  library(cowplot)
 })
 
 
@@ -53,8 +54,6 @@ df <- data.frame("SSA/P" = ssa,
 
 custom_func <- function(data, mapping){
   ggplot(data = data, mapping = mapping) +
-    #geom_point(alpha = 0.3, size = 0.5) +
-    #geom_density_2d(color = "orange")
     geom_bin2d() +
     scale_fill_distiller(palette='RdBu', trans='log10') +
     scale_x_continuous(limits = c(-0.6,0.8)) +
@@ -85,24 +84,13 @@ annotations_genes <- annotations_genes[!duplicated(annotations_genes$gene_id)]
 annotsgene <- c("hg19_cpg_islands")
 annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
 
-grab_sites <- function(regions, gr){
+grab_sites <- function(regions, gr, df){
 hits <- subjectHits(findOverlaps(regions, gr))
 dfsub <- df[hits,]
 }
 
 df_proms <- grab_sites(annotations_genes, gr)
 df_proms <- df_proms[rowSums(df_proms) > 0,]
-e3 <- tidyr::gather(df_proms, Contrast, Change)
-e3$Contrast <- factor(e3$Contrast, levels = c("SSA.P", "cADN", "Age", "Segment"))
-
-ggplot(e3) +
-  geom_violin(aes(x=Contrast, y=abs(Change)) , fill = "purple") +
-  geom_boxplot(aes(x=Contrast, y=abs(Change)), color = "grey", alpha = 0) +
-  scale_y_continuous(trans='sqrt') +
-  theme_bw() +
-  theme(strip.background = element_rect(colour = "black", fill = "white"),
-        text = element_text(size = 15),
-        legend.position = "none")
 
 GGally::ggpairs(df_proms,
                 upper = NULL,
@@ -110,3 +98,61 @@ GGally::ggpairs(df_proms,
                 diag = list(continuous = custom_func2)) +
   theme_bw()
 
+
+#### Plot meth values ####
+
+
+#choose DMR lists
+cutoff <- 0.05
+load("data/rdata/DMRs_lesions_SSA.RData")
+ssa <- DMRsles_annot[DMRsles_annot$qval <= cutoff & DMRsles_annot$beta > 0]
+
+load("data/rdata/DMRs_lesions_cADN.RData")
+cadn <- DMRsles_annot[DMRsles_annot$qval <= cutoff & DMRsles_annot$beta > 0]
+
+load("data/rdata/DMRs_age_final.RData")
+age <- DMRsage_annot[DMRsage_annot$qval <= cutoff & DMRsage_annot$beta > 0]
+
+
+# get df for each comparison and draw plot
+plot_meth <- function(regs, idx1, idx2, labx, laby){
+  methsub <- grab_sites(regs, gr, meth)
+  covsub <- grab_sites(regs, gr, cov)
+  
+  prop1 <- rowSums(methsub[,idx1]) / rowSums(covsub[,idx1])
+  prop2 <- rowSums(methsub[,idx2]) / rowSums(covsub[,idx2])
+  dat <- data.frame(prop1, prop2)
+  #return(dat)
+  ggplot(data = dat, aes(prop1, prop2)) +
+    geom_bin2d() +
+    geom_density_2d(color = "black") +
+    scale_fill_distiller(palette='RdBu', trans='log10') +
+    geom_abline() +
+    ylab(laby) + xlab(labx) +
+    theme_bw()
+}
+
+
+a <- plot_meth(ssa, colData(bsCombined)$lesion == "Normal_SSA",
+               colData(bsCombined)$lesion == "SSA",
+               "Normal SSA", "SSA/P")
+
+
+b <- plot_meth(cadn, colData(bsCombined)$lesion == "Normal_Adenoma",
+               colData(bsCombined)$lesion == "Adenoma",
+               "Normal cADN", "cADN")
+
+c <- plot_meth(age, 
+               colData(bsCombined)$lesion %in% c("cecum_young", "sigmoid_young"),
+               colData(bsCombined)$lesion %in% c("cecum_old", "sigmoid_old"), 
+               "Young", "Old")
+
+cowplot::plot_grid(a,b,c, labels = "AUTO", ncol = 3)
+ggsave("scatter_methvals_inrespectice_hyperDMRs_2dens.pdf", width = 15, height = 4)
+
+
+# load("data/rdata/uniqueDMRs_lesion_0.05.RData")
+# plot_meth(unique_less, 
+#           grepl("Normal_",colData(bsCombined)$lesion),
+#           grepl("SSA|Adenoma", colData(bsCombined)$lesion), 
+#                "Normal", "Cancer")

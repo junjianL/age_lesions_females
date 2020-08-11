@@ -10,7 +10,7 @@ suppressPackageStartupMessages({
 
 
 #### load combined object ####
-load("data/bsseqCombined.RData")
+load("data/rdata/bsseqCombined.RData")
 
 #Get meth table
 gr <- rowRanges(bsCombined)
@@ -18,9 +18,11 @@ cov <- getCoverage(bsCombined, type = "Cov")
 meth <- getCoverage(bsCombined, type = "M")
 seqlevels(gr) <- paste0("chr",seqlevels(gr))
 meth_vals <- meth / cov
+
+#remove empty rows in all samples
 idx <- rowSums(meth_vals, na.rm=TRUE) != 0 #?
 meth_vals <- meth_vals[idx,]
-gr <- gr[idx]
+gr <- gr[idx] #2,402,537
 
 #get regions to subset
 annotsgene <- c("hg19_cpg_islands")
@@ -31,7 +33,7 @@ grab_sites <- function(regions, gr, df){
   dfsub <- df[hits,]
 }
 
-methvalssub <- grab_sites(annotations_genes, gr, meth_vals)
+methvalssub <- grab_sites(annotations_genes, gr, meth_vals) #1,060,602      48
 
 #### draw densities ####
 bsCombined$lesion_2 <- gsub("sigmoid_|cecum_","", bsCombined$lesion)
@@ -49,8 +51,33 @@ ggplot(df, aes_string(x="Methylation",
        fill=NULL) + 
   scale_x_sqrt() +
   scale_y_sqrt() +
+  #expand_limits(x = 0, y = 0 ) + 
   scale_color_brewer(palette = "Set1") +
   geom_line(stat="density") + 
   theme_bw() +
-  ggtitle("Methylation values in CpG Islands")
+  ggtitle("CpG site methylation values in CpG Islands")
 
+
+### use lesion DMRs
+load("data/rdata/DMRs_lesions_3.RData")
+load("data/rdata/DMRs_age_final.RData")
+
+methvalsdmr <- grab_sites(DMRsage_annot, gr, meth_vals) 
+methvalsdmr <- grab_sites(DMRsles_annot, gr, meth_vals)
+
+df <- data.frame(t(methvalsdmr), Tissue = bsCombined$lesion_2, Sample = bsCombined$names)
+
+df <- reshape2::melt(df, id.vars=c("Sample", "Tissue"),
+                     value.name="Methylation")
+
+ggplot(df, aes_string(x="Methylation", 
+                      col="Tissue"), 
+       fill=NULL) + 
+  scale_x_sqrt() +
+  scale_y_sqrt() +
+  #expand_limits(x = 0, y = 0 ) + 
+  scale_color_brewer(palette = "Set1") +
+  geom_line(stat="density") + 
+  theme_bw() +
+  ggtitle("CpG site methylation values in lesion DMRs")
+  #ggtitle("CpG site methylation values in age DMRs")

@@ -1,16 +1,15 @@
 ## Overlap Regions
-# nov 26 2019
+# jul 2020
 
 suppressPackageStartupMessages({
   library(GenomicRanges)
-  library(ComplexHeatmap)
-  library(ggplot2)
+  library(bsseq)
 })
 
 
 #### Get regions that are uniquely in pre-lesions ####
 
-cutoff <- 0.1
+cutoff <- 0.05
 
 # get all combinations of lesion comparisons
 
@@ -79,92 +78,65 @@ write.table(df, file = sprintf("data/tables/uniqueDMRs_lesion_merged_%g.txt",cut
             quote = FALSE, row.names = FALSE)
 
 
+### filter regions ###
 
-#### Upset plots ####
+load("data/rdata/bsseq_lesions_filt.RData")
+#load("data/rdata/uniqueDMRs_lesion_merged_0.05.RData")
 
-#Try ComplexHeatmap for upsets
-
-DMRsage_cecum_hyper <- DMRsage_cecum[DMRsage_cecum$beta > 0] #674
-DMRsage_cecum_hypo <- DMRsage_cecum[DMRsage_cecum$beta < 0] #23 
-
-DMRsage_sig_hyper <- DMRsage_sig[DMRsage_sig$beta > 0] #110
-DMRsage_sig_hypo <- DMRsage_sig[DMRsage_sig$beta < 0] #2
-
-
-makeUpsetTable <- function(x,y, comp){
-  hits <- findOverlaps(x, y)
-  comm <- x[queryHits(hits)]
-  
-  uncomS <- y[-subjectHits(hits)]
-  uncomA <- x[-queryHits(hits)]
-  
-  hyperm <- matrix(0, nrow = sum(length(comm), length(uncomA), length(uncomS)), ncol = 2)
-  hyperm[0:length(comm),] <- 1
-  hyperm[(length(comm)+1):(length(comm)+length(uncomA)),1] <- 1
-  hyperm[(length(comm)+length(uncomA)+1):(length(comm)+length(uncomA)+length(uncomS)),2] <- 1
-  
-  
-  #colnames(hyperm)=c("Segments (Old Vs Young)","Lesions (Vs Normal)")
-  colnames(hyperm)=comp
-  return(hyperm)
-}
-
-hyperM <- makeUpsetTable(DMRsage_cecum_hyper, DMRsage_sig_hyper, 
-                         c("Cecum (Old Vs Young)", "Sigmoid (Old Vs Young)"))
-
-hypoM <- makeUpsetTable(DMRsage_cecum_hypo, DMRsage_sig_hypo, 
-                         c("Cecum (Old Vs Young)", "Sigmoid (Old Vs Young)"))
+#Get meth table
+gr <- rowRanges(bismarkBSseq)
+cov <- getCoverage(bismarkBSseq, type = "Cov")
+meth <- getCoverage(bismarkBSseq, type = "M")
+seqlevels(gr) <- paste0("chr",seqlevels(gr))
 
 
-#This works if i want to see number of bps overlapping
-# peak_list_hyper <- list(Cecum = DMRsage_cecum_hyper, Sigmoid = DMRsage_sig_hyper)
-# peak_list_hypo <- list(Cecum = DMRsage_cecum_hypo, Sigmoid = DMRsage_sig_hypo)
+#summarize meth val per region
+library(plyranges)
+library(dplyr)
+mcols(gr) <- meth
+hits <- findOverlaps(unique_less, gr)
+gr$DMR <- NA
+gr[subjectHits(hits)]$DMR <- queryHits(hits)
+gr_sub <- gr[!is.na(gr$DMR)]
 
-#m2 = make_comb_mat(peak_list_hypo) #no overlap
+#methylation matrix
+meth_dmr <- gr_sub %>% 
+  group_by(DMR) %>% 
+  summarise_at(
+    colnames(meth), mean, na.rm=TRUE
+  ) %>% 
+  as.matrix()
 
-#Plot
-upset_withnumbers <- function(m, color, order_vec){
-  col_size = comb_size(m)
-  row_size = set_size(m)
-  
-  ht = UpSet(m, pt_size = unit(5, "mm"), lwd = 3, 
-             set_order = order_vec,
-             top_annotation = 
-               HeatmapAnnotation("No. DMRs" = 
-                                   anno_barplot(comb_size(m), 
-                                                         border = FALSE, 
-                                                         gp = gpar(fill = color), 
-                                                         height = unit(7, "cm"),
-                                                         ylim = c(0, max(col_size)*1.1)
-               )),
-             right_annotation = upset_right_annotation(m,
-                                                       width = unit(4, "cm"),
-                                                       ylim = c(0, max(row_size)*1.1)))
-  ht = draw(ht)
-  
-  col_od = column_order(ht)
-  row_od = row_order(ht)
-  
-  decorate_annotation("No. DMRs", {
-    grid.text(col_size[col_od], 
-              seq_len(length(col_size)), 
-              unit(col_size[col_od], "native") + unit(2, "mm"), 
-              default.units = "native", just = "bottom",
-              gp = gpar(fontsize = 8))
-  })
-  decorate_annotation("Set size", {
-    grid.text(row_size[row_od], 
-              unit(row_size[row_od], "native") + unit(2, "mm"), 
-              rev(seq_len(length(row_size))), 
-              default.units = "native", just = "bottom", rot = -90,
-              gp = gpar(fontsize = 8))
-  })
-}
-m <- make_comb_mat(hyperM)
-pdf("figures/upset_cecumVssigmoid_pval.pdf", width = 6, height = 5)
-upset_withnumbers(m, "#e1cf22", c("Cecum (Old Vs Young)", "Sigmoid (Old Vs Young)"))
-m <- make_comb_mat(hypoM)
-upset_withnumbers(m, "#3b56d8", c("Cecum (Old Vs Young)", "Sigmoid (Old Vs Young)")) 
-dev.off()
+#cov matrix
+mcols(gr) <- cov
+gr$DMR <- NA
+gr[subjectHits(hits)]$DMR <- queryHits(hits)
+gr_sub <- gr[!is.na(gr$DMR)]
 
+cov_dmr <- gr_sub %>% 
+  group_by(DMR) %>% 
+  summarise_at(
+    colnames(cov), mean, na.rm=TRUE
+  ) %>% 
+  as.matrix()
 
+# 1. Filter by baseline level
+
+meth_val <- meth_dmr / cov_dmr
+idxnorm <- grepl("Normal_",colData(bismarkBSseq)$lesion)
+subnorm <- as.matrix(meth_val[,idxnorm])
+idx <- rowMeans(subnorm, na.rm = TRUE) < 0.2    
+
+sub_unique <- unique_less[idx]
+dfgr <- as.data.frame(sub_unique)
+write.csv(dfgr, file = "data/tables/uniqueDMRs_lesion_merged_filt.txt", 
+          quote = FALSE, row.names = FALSE)
+
+# 2. Filter by effect size (this wouldnt make sense for unique ssa or cadn)
+prop1 <- rowSums(meth_dmr[,idxnorm]) / rowSums(cov_dmr[,idxnorm])
+prop2 <- rowSums(meth_dmr[,!idxnorm]) / rowSums(cov_dmr[,!idxnorm])
+diff <- prop2 - prop1 
+hist(diff)
+idx2 <- diff > 0.7
+
+sub_unique <- unique_less[idx | idx2]
