@@ -43,27 +43,36 @@ bsCombined$lesion_2 <- factor(bsCombined$lesion_2,
 
 df <- data.frame(t(methvalssub), Tissue = bsCombined$lesion_2, Sample = bsCombined$names)
 
+#too slow
+# df_mean <- df %>% 
+#   group_by(Tissue) %>% 
+#   summarise_at(
+#     head(colnames(df), -2), mean, na.rm=TRUE)
+
+#df_ssa <- colMeans(df[df$Tissue == "SSA",])
+
 df <- reshape2::melt(df, id.vars=c("Sample", "Tissue"),
                      value.name="Methylation")
 
-ggplot(df, aes_string(x="Methylation", 
-                      col="Tissue"), 
-       fill=NULL) + 
-  scale_x_sqrt() +
-  scale_y_sqrt() +
-  #expand_limits(x = 0, y = 0 ) + 
+ggplot(df) + 
+  scale_y_log10() +
   scale_color_brewer(palette = "Set1") +
-  geom_line(stat="density") + 
+  #geom_histogram(fill="white", alpha=0.5, position="identity", bins = 60) +
+  # geom_line(aes_string(x="Methylation", col="Tissue", group = "Sample"),
+  #           stat="density", fill = NULL, alpha = 0.1, adjust = 2) + 
+  geom_line(aes_string(x="Methylation", col="Tissue"),
+            stat="density", fill = NULL, adjust = 3) + 
   theme_bw() +
-  ggtitle("CpG site methylation values in CpG Islands")
+  ggtitle("CpG site methylation values in CpG islands")
 
 
 ### use lesion DMRs
 load("data/rdata/DMRs_lesions_3.RData")
-load("data/rdata/DMRs_age_final.RData")
-
-methvalsdmr <- grab_sites(DMRsage_annot, gr, meth_vals) 
 methvalsdmr <- grab_sites(DMRsles_annot, gr, meth_vals)
+
+load("data/rdata/DMRs_age_final.RData")
+methvalsdmr <- grab_sites(DMRsage_annot, gr, meth_vals) 
+
 
 df <- data.frame(t(methvalsdmr), Tissue = bsCombined$lesion_2, Sample = bsCombined$names)
 
@@ -71,13 +80,10 @@ df <- reshape2::melt(df, id.vars=c("Sample", "Tissue"),
                      value.name="Methylation")
 
 ggplot(df, aes_string(x="Methylation", 
-                      col="Tissue"), 
-       fill=NULL) + 
-  scale_x_sqrt() +
-  scale_y_sqrt() +
-  #expand_limits(x = 0, y = 0 ) + 
+                      col="Tissue")) + 
+  #scale_y_log10() +
   scale_color_brewer(palette = "Set1") +
-  geom_line(stat="density") + 
+  geom_line(stat="density", fill = NULL, adjust = 3) + 
   theme_bw() +
   ggtitle("CpG site methylation values in lesion DMRs")
   #ggtitle("CpG site methylation values in age DMRs")

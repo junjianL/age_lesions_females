@@ -125,18 +125,29 @@ cov_dmr <- gr_sub %>%
 meth_val <- meth_dmr / cov_dmr
 idxnorm <- grepl("Normal_",colData(bismarkBSseq)$lesion)
 subnorm <- as.matrix(meth_val[,idxnorm])
-idx <- rowMeans(subnorm, na.rm = TRUE) < 0.2    
+idx <- rowMeans(subnorm, na.rm = TRUE) < 0.1    
 
-sub_unique <- unique_less[idx]
+# 2. Filter by effect size
+get_change <- function(idx1, idx2){
+  prop1 <- rowSums(meth_dmr[,idx1]) / rowSums(cov_dmr[,idx1])
+  prop2 <- rowSums(meth_dmr[,idx2]) / rowSums(cov_dmr[,idx2])
+  diff <- prop1 - prop2
+}
+
+lesions_diff <- get_change(!idxnorm, idxnorm)
+ssa <- get_change(colData(bismarkBSseq)$lesion == "SSA", 
+                  colData(bismarkBSseq)$lesion == "Normal_SSA")
+
+cadn <- get_change(colData(bismarkBSseq)$lesion == "Adenoma",
+                   colData(bismarkBSseq)$lesion == "Normal_Adenoma")
+  
+cutoff <- 0.8
+idx2 <- lesions_diff > cutoff | ssa > cutoff | cadn > cutoff
+
+# Do filter
+sub_unique <- unique_less[idx & idx2]
+save(sub_unique, file = "data/rdata/unique_lesions_filt.RData")
+
 dfgr <- as.data.frame(sub_unique)
 write.csv(dfgr, file = "data/tables/uniqueDMRs_lesion_merged_filt.txt", 
           quote = FALSE, row.names = FALSE)
-
-# 2. Filter by effect size (this wouldnt make sense for unique ssa or cadn)
-prop1 <- rowSums(meth_dmr[,idxnorm]) / rowSums(cov_dmr[,idxnorm])
-prop2 <- rowSums(meth_dmr[,!idxnorm]) / rowSums(cov_dmr[,!idxnorm])
-diff <- prop2 - prop1 
-hist(diff)
-idx2 <- diff > 0.7
-
-sub_unique <- unique_less[idx | idx2]

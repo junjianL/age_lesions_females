@@ -76,6 +76,6 @@ age <- DMRsage_annot[DMRsage_annot$qval <= 0.1]
 sub <- subsetByOverlaps(age, grDMRs) #545, 636 with 0.1
 
 # overlap DMRs with unique BS-seq lesion DMRs 
-load("data/rdata/uniqueDMRs_lesion_merged_0.05.RData")
-subbs <- subsetByOverlaps(unique_less, grDMRs)
-subbs <- subsetByOverlaps(grDMRs,unique_less)
+load("data/rdata/unique_lesions_filt.RData")
+sub <- subsetByOverlaps(sub_unique, grDMRs)
+
