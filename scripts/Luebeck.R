@@ -40,7 +40,7 @@ table(metadata$age < 40 , metadata$gender)
 #import directly from GEO (this is basically an SE object)
 mset <- getGenomicRatioSetFromGEO("GSE113904")
 
-#subset females and clean vars
+# clean vars
 # also remove mid-age samples
 
 mset$age <- as.integer(mset$`age:ch1`)
@@ -52,6 +52,7 @@ table(mset$age_group)
 mset$location <- mset$`anatomic location:ch1`
 
 msetfem <- mset[,mset$`gender:ch1` == "F" & mset$age_group != "none"]
+#msetfem <- mset[,mset$age_group != "none"]
 table(msetfem$age_group)
 
 #do some plots
@@ -72,16 +73,13 @@ legend("top", legend=levels(factor(msetfem$location)), text.col=pal,
 ## remove rectum samples
 msetfemsub <- msetfem[,!msetfem$location %in% c("rectum","right_colon")]
 
+limma::plotMDS(getM(msetfemsub), top=10000, gene.selection="common",
+               col=pal[factor(msetfemsub$age_group)])
+legend("top", legend=levels(factor(msetfemsub$age_group)), text.col=pal,
+       bg="white", cex=0.7)
+
+# save
 msetfemsub$dataset <- "Luebeck"
 saveRDS(msetfemsub, "data/public_data/luebeck.rds")
-
-#Run bumphunter wrapper in minfi
-df <- colData(msetfem)
-designMatrix <- model.matrix(~ age_group, df)
-
-dmrs <- minfi::bumphunter(msetfem, design = designMatrix, 
-                   cutoff = 0.1, B=1000, type="Beta")
-
-dim(dmrs$table)
 
 #load("data/public_data/Luebeck_2019/dmrs.RData")
