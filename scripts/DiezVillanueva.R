@@ -9,6 +9,8 @@ suppressPackageStartupMessages({
   library(minfi)
   library(IlluminaHumanMethylation450kanno.ilmn12.hg19)
   library(ComplexHeatmap)
+  library(dplyr)
+  library(plyranges)
 })
 
 ## DiezVillanueva data
@@ -99,19 +101,33 @@ diez <- GenomicRatioSet(ann450k[ind2], Beta = betas, M = NULL,
 colnames(diez) <- colnames(betas)
 assay(diez, "pvalue") <- pvals
 
-# choose females and age
-diezfem <- diez[,diez$gender == "gender: Female" & 
-                  diez$age_group != "mid-age"]
+diez$dataset <- "DiezVillanueva"
+saveRDS(diez, "data/public_data/diez.rds")
+
+# choose females
+diezfem <- diez[,diez$gender == "gender: Female"]
 
 # remove low detection pvalues across all samples
-idx <- rowSums(assay(diezfem, "pvalue") < 0.05) == 6
+idx <- rowSums(assay(diezfem, "pvalue") < 0.05) == ncol(diezfem)
 diezfem <- diezfem[idx,]
-
-diezfem$dataset <- "DiezVillanueva"
-saveRDS(diezfem, "data/public_data/diez.rds")
 
 #do some plots
 pal <- brewer.pal(8,"Dark2")
+
+#by tissue
+limma::plotMDS(getM(diezfem), top=10000, gene.selection="common",
+               col=pal[factor(diezfem$tissue)])
+legend("top", legend=levels(factor(diezfem$tissue)), text.col=pal,
+       bg="white", cex=0.7)
+
+#remove tumor
+diezfem <- diezfem[,diezfem$tissue != "Tumor"]
+
+#by location
+limma::plotMDS(getM(diezfem), top=10000, gene.selection="common",
+               col=pal[factor(diezfem$location)])
+legend("top", legend=levels(factor(diezfem$location)), text.col=pal,
+       bg="white", cex=0.7)
 
 #by age
 limma::plotMDS(getM(diezfem), top=10000, gene.selection="common",
@@ -119,11 +135,7 @@ limma::plotMDS(getM(diezfem), top=10000, gene.selection="common",
 legend("top", legend=levels(factor(diezfem$age_group)), text.col=pal,
        bg="white", cex=0.7)
 
-#by location
-limma::plotMDS(getM(diezfem), top=10000, gene.selection="common",
-               col=pal[factor(diezfem$location)])
-legend("top", legend=levels(factor(diezfem$location)), text.col=pal,
-       bg="white", cex=0.7)
+
 
 #### draw heatmap with selected markers ####
 
@@ -139,60 +151,105 @@ diezfem <- diezfem[idx,]
 dim(diezfem) #481,955
 
 # get probes in selected markers
-real <- overlapsAny(diezfem, sub_unique)
-score <- data.frame(getBeta(diezfem)[real,])
+meth_vals <- as.matrix(getBeta(diezfem))
 
-#Colors
-col <- RColorBrewer::brewer.pal(n = 9, name = "YlGnBu")
-col_anot <- RColorBrewer::brewer.pal(n = 9, name = "Set1")
-purples <- RColorBrewer::brewer.pal(n = 3, name = "Purples")
-greens <- RColorBrewer::brewer.pal(n = 3, name = "Greens")
-pinks <- RColorBrewer::brewer.pal(n = 4, name = "RdPu")[c(1,3:4)]
+draw_hm <- function(obj, regions, numregs){
+  gr <- rowRanges(obj)
+  mcols(gr) <- meth_vals
+  hits <- findOverlaps(regions, gr)
+  gr$DMR <- NA
+  gr[subjectHits(hits)]$DMR <- queryHits(hits)
+  
+  gr_sub <- gr[!is.na(gr$DMR)]
+  
+  #use plyranges
+  gr_dmr <- gr_sub %>% 
+    group_by(DMR) %>% 
+    summarise_at(
+      colnames(meth_vals), mean, na.rm=TRUE
+    )
+  
+  #Get matrix
+  madr <- rowVars(as.matrix(gr_dmr)[,-1])
+  o <- order(madr, decreasing = TRUE)
+  score <- as.matrix(gr_dmr)[o,-1][1:numregs,]
+  
+  return(score)
+  
+  #Colors
+  col <- RColorBrewer::brewer.pal(n = 9, name = "YlGnBu")
+  col_anot <- RColorBrewer::brewer.pal(n = 9, name = "Set1")
+  purples <- RColorBrewer::brewer.pal(n = 3, name = "Purples")
+  greens <- RColorBrewer::brewer.pal(n = 3, name = "Greens")
+  pinks <- RColorBrewer::brewer.pal(n = 4, name = "RdPu")[c(1,3:4)]
+  
+  #hm colors
+  col_fun <- circlize::colorRamp2(c(0,0.2,1), c(col[9], col[7], col_anot[6]))
+  
+  #annot colors
+  col_age <- purples[1:nlevels(obj$age_group)]
+  names(col_age) <- levels(obj$age_group)
+  
+  col_tis <- greens[1:nlevels(obj$tissue)]
+  names(col_tis) <- levels(obj$tissue)
+  
+  col_seg <- pinks[1:nlevels(obj$location)]
+  names(col_seg) <- levels(obj$location)
+  
+  #column annot
+  column_ha <- HeatmapAnnotation(Age = obj$age_group, 
+                                 Tissue = obj$tissue,
+                                 Location = obj$location,
+                                 col = list(Age = col_age,
+                                            Tissue = col_tis,
+                                            Location = col_seg), 
+                                 gp = gpar(col = "black"))
+  
+  #remove names
+  rownames(score) <- colnames(score) <- NULL
+  
+  #Plot
+  hm <- Heatmap(score, 
+                use_raster = TRUE,
+                na_col = "white",
+                column_split = obj$tissue,
+                top_annotation = column_ha,
+                col = col_fun,
+                #row_km = 2, 
+                clustering_distance_columns = "spearman",
+                cluster_columns = TRUE,
+                show_row_dend = FALSE,
+                show_column_dend = TRUE,
+                cluster_column_slices = FALSE,
+                #left_annotation = row_ha, ## remove with 3 groups
+                row_title = "selected markers", 
+                column_title = "Samples",
+                column_title_side = "bottom",
+                column_names_gp = gpar(fontsize = 8),
+                heatmap_legend_param = list(title = "Beta",
+                                            title_position = "lefttop-rot",
+                                            grid_height = unit(1, "cm"),
+                                            grid_width = unit(0.5, "cm")))
+  #return(hm)
+}
 
-#hm colors
-col_fun <- circlize::colorRamp2(c(0,0.2,1), c(col[9], col[7], col_anot[6]))
+draw_hm(diezfem, sub_unique, 2000)
 
-#annot colors
-col_age <- purples[1:nlevels(diezfem$age_group)]
-names(col_age) <- levels(diezfem$age_group)
+## non-selected regions
+library(annotatr)
+annotsgene <- c("hg19_cpg_islands")
+annotations_genes <- build_annotations(genome = 'hg19', annotations = annotsgene)
 
-col_tis <- greens[1:nlevels(diezfem$tissue)]
-names(col_tis) <- levels(diezfem$tissue)
+draw_hm(diezfem, annotations_genes, 2000)
 
-col_seg <- pinks[1:nlevels(diezfem$location)]
-names(col_seg) <- levels(diezfem$location)
+#Try to calculate AUC for each marker
+truth <- ifelse(grepl("_T",colnames(meth_vals)), 1,0)
+preds <- draw_hm(diezfem, sub_unique, 5318) 
 
-#column annot
-column_ha <- HeatmapAnnotation(Age = diezfem$age_group, 
-                               Tissue = diezfem$tissue,
-                               Location = diezfem$location,
-                               col = list(Age = col_age,
-                                          Tissue = col_tis,
-                                          Location = col_seg), 
-                               gp = gpar(col = "black"))
+auc_vec <- sapply(1:nrow(preds), function(u){
+  roc_obj <- pROC::roc(truth, meth_vals[u,], direction = "<", quiet = TRUE)
+  pROC::auc(roc_obj)
+})
 
-#remove names
-rownames(score) <- colnames(score) <- NULL
-
-#Plot
-Heatmap(score, 
-        na_col = "white",
-        column_split = diezfem$tissue,
-        top_annotation = column_ha,
-        col = col_fun,
-        #row_km = 2, 
-        clustering_distance_columns = "spearman",
-        cluster_columns = TRUE,
-        show_row_dend = FALSE,
-        show_column_dend = TRUE,
-        cluster_column_slices = FALSE,
-        #left_annotation = row_ha, ## remove with 3 groups
-        row_title = "selected markers", 
-        column_title = "Samples",
-        column_title_side = "bottom",
-        column_names_gp = gpar(fontsize = 8),
-        heatmap_legend_param = list(title = "Beta",
-                                    title_position = "lefttop-rot",
-                                    grid_height = unit(1, "cm"),
-                                    grid_width = unit(0.5, "cm")))
-
+hist(auc_vec, breaks = 60)
+dev.off()

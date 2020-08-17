@@ -6,6 +6,7 @@ suppressPackageStartupMessages({
   library(bsseq)
   library(ggplot2)
   library(cowplot)
+  library(annotatr)
 })
 
 
@@ -82,15 +83,16 @@ annotations_genes <- annotations_genes[!duplicated(annotations_genes$gene_id)]
 
 #islands
 annotsgene <- c("hg19_cpg_islands")
-annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
+annotations_genes <- build_annotations(genome = 'hg19', annotations = annotsgene)
 
 grab_sites <- function(regions, gr, df){
 hits <- subjectHits(findOverlaps(regions, gr))
 dfsub <- df[hits,]
+#
 }
 
-df_proms <- grab_sites(annotations_genes, gr)
-df_proms <- df_proms[rowSums(df_proms) > 0,]
+df_proms <- grab_sites(annotations_genes, gr, df) #1,064,915
+df_proms <- df_proms[rowSums(df_proms) > 0,] #653,484
 
 GGally::ggpairs(df_proms,
                 upper = NULL,
