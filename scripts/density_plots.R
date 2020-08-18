@@ -66,7 +66,7 @@ ggplot(df) +
   ggtitle("CpG site methylation values in CpG islands")
 
 
-### use lesion DMRs
+### use lesion DMRs ####
 load("data/rdata/DMRs_lesions_3.RData")
 methvalsdmr <- grab_sites(DMRsles_annot, gr, meth_vals)
 
