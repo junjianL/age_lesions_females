@@ -67,7 +67,7 @@ limitCov <- function(cov, meth, maxCov, object){
 
 bismarkBSseq <- limitCov(cov, meth, quant, bismarkBSseq)
 
-save(bismarkBSseq, file = "data/bsseq_lesions_filt.RData")
+save(bismarkBSseq, file = "data/rdata/bsseq_lesions_filt.RData")
 
 #Generate bws
 cov <- getCoverage(bismarkBSseq, type = "Cov")
@@ -236,3 +236,21 @@ DMRsles_annot <- get_table_with_annots(DMRsles_filt)
 save(DMRsles_annot,file = "data/DMRs_lesions_cADN.RData")
 df <- as.data.frame(DMRsles_annot)
 write.table(df, file = "data/DMRs_lesions_cADN.txt", quote = FALSE, row.names = FALSE)
+
+
+#### tests ####
+
+bismarkBSseq$age_group <- ifelse(bismarkBSseq$age > 50, "old", "young")
+bismarkBSseq$state <- ifelse(grepl("Normal", bismarkBSseq$lesion), "Normal", "Cancer")
+
+## Run dmrseq including age as covariate
+set.seed(1234)
+DMRsles <- dmrseq(bs=bismarkBSseq,
+                  testCovariate="state", 
+                  cutoff = 0.1, 
+                  BPPARAM = MulticoreParam(3),
+                  adjustCovariate = c("patient", "age"),
+                  maxPerms = 20,
+                  maxGap = 100,
+                  maxGapSmooth = 1000,
+                  minNumRegion = 3) 

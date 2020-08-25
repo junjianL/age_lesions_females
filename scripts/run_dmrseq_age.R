@@ -252,10 +252,10 @@ DMRsage_cecum_annot <- get_table_with_annots(DMRsage_cecum)
 hist(DMRsage_cecum$beta)
 hist(DMRsage_cecum$meth)
 
-save(DMRsage_cecum_annot,file = "data/DMRs_age_cecum_2.RData")
+save(DMRsage_cecum_annot,file = "data/rdata/DMRs_age_cecum_2.RData")
 
 df <- as.data.frame(DMRsage_cecum_annot)
-write.table(df, file = "data/DMRs_age_cecum_2.txt", quote = FALSE, row.names = FALSE)
+write.table(df, file = "data/tables/DMRs_age_cecum_2.txt", quote = FALSE, row.names = FALSE)
 
 #Sigmoid
 
@@ -273,10 +273,10 @@ DMRsage_sig$beta <- -1 * DMRsage_sig$beta #37,382
 DMRsage_sig$meth <- scale_beta(DMRsage_sig$beta)
 DMRsage_sig_annot <- get_table_with_annots(DMRsage_sig)
 
-save(DMRsage_sig_annot,file = "data/DMRs_age_sig_2.RData")
+save(DMRsage_sig_annot,file = "data/rdata/DMRs_age_sig_2.RData")
 
 df <- as.data.frame(DMRsage_sig_annot)
-write.table(df, file = "data/DMRs_age_sigmoid_2.txt", quote = FALSE, row.names = FALSE)
+write.table(df, file = "data/tables/DMRs_age_sigmoid_2.txt", quote = FALSE, row.names = FALSE)
 
 #All samples: Use segment as a covariate
 
@@ -292,12 +292,11 @@ DMRsage <- dmrseq(bs=bismarkBSseq,
                   minNumRegion = 3)
 
 DMRsage$beta <- -1 * DMRsage$beta #24,162
-DMRsage$meth <- scale_beta(DMRsage$beta)
 DMRsage_annot <- get_table_with_annots(DMRsage)
-save(DMRsage_annot,file = "data/DMRs_age_final.RData")
+save(DMRsage_annot,file = "data/rdata/DMRs_age_final.RData")
 
 df <- as.data.frame(DMRsage_annot)
-write.table(df, file = "data/DMRs_age_final.txt", quote = FALSE, row.names = FALSE)
+write.table(df, file = "data/tables/DMRs_age_final.txt", quote = FALSE, row.names = FALSE)
 
 # Only old 
 set.seed(1234)
@@ -312,10 +311,10 @@ DMRsage_o <- dmrseq(bs=bso,
                   minNumRegion = 3)
 
 DMRsage_annot <- get_table_with_annots(DMRsage_o)
-save(DMRsage_annot,file = "data/DMRs_old.RData")
+save(DMRsage_annot,file = "data/rdata/DMRs_old.RData")
 
 df <- as.data.frame(DMRsage_annot)
-write.table(df, file = "data/DMRs_old.txt", quote = FALSE, row.names = FALSE)
+write.table(df, file = "data/tables/DMRs_old.txt", quote = FALSE, row.names = FALSE)
 
 # Only young
 set.seed(1234)
@@ -330,12 +329,12 @@ DMRsage_y <- dmrseq(bs=bsy,
                     minNumRegion = 3)
 
 DMRsage_annot <- get_table_with_annots(DMRsage_y)
-save(DMRsage_annot,file = "data/DMRs_young.RData")
+save(DMRsage_annot,file = "data/rdata/DMRs_young.RData")
 
 df <- as.data.frame(DMRsage_annot)
-write.table(df, file = "data/DMRs_young.txt", quote = FALSE, row.names = FALSE)
+write.table(df, file = "data/tables/DMRs_young.txt", quote = FALSE, row.names = FALSE)
 
-# old and young together
+# Segment: old and young together
 set.seed(1234)
 
 DMRsseg <- dmrseq(bs=bismarkBSseq,
@@ -349,7 +348,9 @@ DMRsseg <- dmrseq(bs=bismarkBSseq,
                     minNumRegion = 3)
 
 DMRsage_annot <- get_table_with_annots(DMRsseg)
-save(DMRsage_annot,file = "data/DMRs_segm.RData")
+DMRsage_annot$beta <- -1 * DMRsage_annot$beta
+
+save(DMRsage_annot,file = "data/rdata/DMRs_segm.RData")
 
 df <- as.data.frame(DMRsage_annot)
-write.table(df, file = "data/DMRs_segm.txt", quote = FALSE, row.names = FALSE)
+write.table(df, file = "data/tables/DMRs_segm.txt", quote = FALSE, row.names = FALSE)

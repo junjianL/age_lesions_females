@@ -4,9 +4,8 @@
 suppressPackageStartupMessages({
   library(GenomicRanges)
   library(ComplexHeatmap)
+  library(ChIPpeakAnno)
 })
-
-#Try ComplexHeatmap for upsets
 
 cutoff <- 0.05
 
@@ -14,55 +13,54 @@ cutoff <- 0.05
 load("data/rdata/DMRs_lesions_3.RData")
 lesion <- sort(DMRsles_annot[DMRsles_annot$qval <= cutoff & DMRsles_annot$beta > 0])
 
+load("data/rdata/DMRs_lesions_SSA.RData")
+ssa <- sort(DMRsles_annot[DMRsles_annot$qval <= cutoff & DMRsles_annot$beta > 0])
+
+load("data/rdata/DMRs_lesions_cADN.RData")
+cadn <- sort(DMRsles_annot[DMRsles_annot$qval <= cutoff & DMRsles_annot$beta > 0])
+
 # get full age comparisons
 
 load("data/rdata/DMRs_age_final.RData")
-age_full <- DMRsage_annot[DMRsage_annot$qval <= cutoff & DMRsage_annot$beta > 0]
+age_full <- DMRsage_annot[DMRsage_annot$qval <= cutoff]
 
 #get full segment comparisons
 
 load("data/rdata/DMRs_segm.RData")
-seg_full <- DMRsage_annot[DMRsage_annot$qval <= cutoff & DMRsage_annot$beta > 0]
+seg_full <- DMRsage_annot[DMRsage_annot$qval <= cutoff]
 
+# get overlap counts
+# this returns input to venndiagram, i transform this to input
+# for complexHeatmap
 
-#old function from old paper, too lazy to change
-makeUpsetTable <- function(x,y, comp){
-  hits <- findOverlaps(x, y)
-  comm <- x[queryHits(hits)]
-  
-  uncomS <- y[-subjectHits(hits)]
-  uncomA <- x[-queryHits(hits)]
-  
-  hyperm <- matrix(0, nrow = sum(length(comm), length(uncomA), length(uncomS)), ncol = 2)
-  hyperm[0:length(comm),] <- 1
-  hyperm[(length(comm)+1):(length(comm)+length(uncomA)),1] <- 1
-  hyperm[(length(comm)+length(uncomA)+1):(length(comm)+length(uncomA)+length(uncomS)),2] <- 1
-  
-  
-  #colnames(hyperm)=c("Segments (Old Vs Young)","Lesions (Vs Normal)")
-  colnames(hyperm)=comp
-  return(hyperm)
-}
+#function is based on the Interval tree algorithm
+over <- findOverlapsOfPeaks(lesion, ssa, cadn, age_full, seg_full, 
+                            connectedPeaks = "keepAll")
+mat <- data.frame(over$venn_cnt[,1:5])
+total_counts <- over$venn_cnt[,6]
 
-age_over <- makeUpsetTable(lesion, age_full, 
-                         c("Lesion (Lesion Vs Normal)", "Age (Old Vs Young)"))
+#Repeat rows `counts` number of times
+fillin <- sapply(1:nrow(mat), function(u){
+  if(total_counts[u] > 0) {
+    reps <- unlist(rep(mat[u,], total_counts[u]))
+    matrix(reps, ncol = 5, byrow = TRUE)
+  } else NULL
+})
 
-seg_over <- makeUpsetTable(lesion, seg_full, 
-                        c("Lesion (Lesion Vs Normal)", "Location (Cecum Vs Sigmoid)"))
+fillin <- fillin[!sapply(fillin, is.null)]
+matfull <- as.matrix(do.call(rbind,fillin))
+colnames(matfull) <- colnames(mat)
 
+#get obj for upset
+m <- make_comb_mat(matfull)
 
-#This works if i want to see number of bps overlapping
-# peak_list_hyper <- list(Cecum = DMRsage_cecum_hyper, Sigmoid = DMRsage_sig_hyper)
-# peak_list_hypo <- list(Cecum = DMRsage_cecum_hypo, Sigmoid = DMRsage_sig_hypo)
-
-#m2 = make_comb_mat(peak_list_hypo) #no overlap
 
 #Plot
 upset_withnumbers <- function(m, color, order_vec){
   col_size = comb_size(m)
   row_size = set_size(m)
   
-  ht = UpSet(m, pt_size = unit(5, "mm"), lwd = 3, 
+  ht = UpSet(m, pt_size = unit(3, "mm"), lwd = 2, 
              set_order = order_vec,
              top_annotation = 
                HeatmapAnnotation("No. DMRs" = 
@@ -73,8 +71,9 @@ upset_withnumbers <- function(m, color, order_vec){
                                                 ylim = c(0, max(col_size)*1.1)
                                    )),
              right_annotation = upset_right_annotation(m,
-                                                       width = unit(4, "cm"),
-                                                       ylim = c(0, max(row_size)*1.1)))
+                                                       width = unit(3, "cm"),
+                                                       ylim = c(0, max(row_size)*1.1),
+                                                       gp = gpar(fill = "#636363")))
   ht = draw(ht)
   
   col_od = column_order(ht)
@@ -83,7 +82,7 @@ upset_withnumbers <- function(m, color, order_vec){
   decorate_annotation("No. DMRs", {
     grid.text(col_size[col_od], 
               seq_len(length(col_size)), 
-              unit(col_size[col_od], "native") + unit(2, "mm"), 
+              unit(col_size[col_od], "native") + unit(1, "mm"), 
               default.units = "native", just = "bottom",
               gp = gpar(fontsize = 8))
   })
@@ -96,11 +95,8 @@ upset_withnumbers <- function(m, color, order_vec){
   })
 }
 
-pdf("upsets_hyperDMRs.pdf")
-m <- make_comb_mat(age_over)
-upset_withnumbers(m, "#e1cf22", c("Lesion (Lesion Vs Normal)", "Age (Old Vs Young)"))
+pdf("upsets_DMRs.pdf", width = 10, height = 6)
 
-m <- make_comb_mat(seg_over)
-upset_withnumbers(m, "#e1cf22", c("Lesion (Lesion Vs Normal)", "Location (Cecum Vs Sigmoid)")) 
+upset_withnumbers(m, "#756bb1", c("lesion", "ssa", "cadn",
+                                  "age_full","seg_full"))
 dev.off()
-#"#3b56d8" azul

@@ -128,13 +128,15 @@ plot_meth <- function(regs, idx1, idx2, labx, laby){
   prop2 <- rowMeans(methsub[,idx2], na.rm = TRUE)
   dat <- data.frame(prop1, prop2)
   #return(dat)
-  ggplot(data = dat, aes(prop1, prop2)) +
+  p <- ggplot(data = dat, aes(prop1, prop2)) +
     geom_bin2d() +
     #geom_density_2d(color = "black") +
-    scale_fill_distiller(palette='RdBu', trans='log10', values = ) +
+    scale_fill_distiller(palette='RdBu', trans='log10', limits = c(1,10605)) +
     geom_abline() +
     ylab(laby) + xlab(labx) +
     theme_bw()
+  p
+  
 }
 
 
@@ -152,9 +154,9 @@ c <- plot_meth(age,
                colData(bsCombined)$lesion %in% c("cecum_old", "sigmoid_old"), 
                "Young", "Old")
 d <- plot_meth(seg, 
+               colData(bsCombined)$lesion %in% c("sigmoid_young", "sigmoid_old"),
                colData(bsCombined)$lesion %in% c("cecum_young", "cecum_old"),
-               colData(bsCombined)$lesion %in% c("sigmoid_young", "sigmoid_old"), 
-               "Cecum", "Sigmoid")
+               "Sigmoid","Cecum")
 
 
 cowplot::plot_grid(a,b,c,d, labels = "AUTO", ncol = 2)
