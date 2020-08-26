@@ -120,35 +120,10 @@ limma::plotMDS(getM(diezfem), top=10000, gene.selection="common",
 legend("top", legend=levels(factor(diezfem$tissue)), text.col=pal,
        bg="white", cex=0.7)
 
-#remove tumor
-diezfem <- diezfem[,diezfem$tissue != "Tumor"]
-
-#by location
-limma::plotMDS(getM(diezfem), top=10000, gene.selection="common",
-               col=pal[factor(diezfem$location)])
-legend("top", legend=levels(factor(diezfem$location)), text.col=pal,
-       bg="white", cex=0.7)
-
-#by age
-limma::plotMDS(getM(diezfem), top=10000, gene.selection="common",
-               col=pal[factor(diezfem$age_group)])
-legend("top", legend=levels(factor(diezfem$age_group)), text.col=pal,
-       bg="white", cex=0.7)
-
-
 
 #### draw heatmap with selected markers ####
 
 load("data/rdata/unique_lesions_filt.RData")
-#unique_all <- sub_unique[lengths(sub_unique$revmap) == 3] #2410
-
-diezfem <- diez[,diez$gender == "gender: Female"]
-dim(diezfem)
-
-# remove low detection pvalues across all samples
-idx <- rowSums(assay(diezfem, "pvalue") < 0.05) == 78
-diezfem <- diezfem[idx,]
-dim(diezfem) #481,955
 
 # get probes in selected markers
 meth_vals <- as.matrix(getBeta(diezfem))
@@ -240,16 +215,34 @@ library(annotatr)
 annotsgene <- c("hg19_cpg_islands")
 annotations_genes <- build_annotations(genome = 'hg19', annotations = annotsgene)
 
-draw_hm(diezfem, annotations_genes, 2000)
 
-#Try to calculate AUC for each marker
+#### combine all markers into single signature ####
+
+combine_marks <- function(obj, regions){
+  gr <- rowRanges(obj)
+  mcols(gr) <- meth_vals
+  hits <- findOverlaps(regions, gr)
+  gr$DMR <- NA
+  gr[subjectHits(hits)]$DMR <- queryHits(hits)
+  
+  gr_sub <- gr[!is.na(gr$DMR)]
+  
+  #use plyranges
+  gr_dmr <- gr_sub %>% 
+    group_by(DMR) %>% 
+    summarise_at(
+      colnames(meth_vals), mean, na.rm=TRUE
+    )
+  
+  #Get matrix
+  score <- as.matrix(gr_dmr)[,-1]
+  mean_betas <- colMedians(score, na.rm = TRUE)
+}
+mean_betas <- combine_marks(diezfem, sub_uniqueannot)
+
+#set truth and draw ROC
 truth <- ifelse(grepl("_T",colnames(meth_vals)), 1,0)
-preds <- draw_hm(diezfem, sub_unique, 5318) 
+pROC::roc(truth, mean_betas, direction = "<", plot = TRUE,
+          main= "Combined selected markers, Diez-Villanueva 2020",
+          percent=TRUE, print.auc=TRUE, print.thres = "best")
 
-auc_vec <- sapply(1:nrow(preds), function(u){
-  roc_obj <- pROC::roc(truth, meth_vals[u,], direction = "<", quiet = TRUE)
-  pROC::auc(roc_obj)
-})
-
-hist(auc_vec, breaks = 60)
-dev.off()
