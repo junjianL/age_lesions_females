@@ -4,6 +4,9 @@
 suppressPackageStartupMessages({
   library(GenomicRanges)
   library(bsseq)
+  library(plyranges)
+  library(dplyr)
+  library(annotatr)
 })
 
 
@@ -29,45 +32,20 @@ o <- order(les_source$qval)
 les_source <- les_source[o]
 les <- reduce(les_source, with.revmap=TRUE)
 
-# get all combinations of age comparisons
+# get age comparison
 
 load("data/rdata/DMRs_age_final.RData")
-full <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff])
-load("data/rdata/DMRs_age_sig_2.RData")
-sig <- sort(DMRsage_sig_annot[DMRsage_sig_annot$qval <= cutoff])
-load("data/rdata/DMRs_age_cecum_2.RData")
-cec <- sort(DMRsage_cecum_annot[DMRsage_cecum_annot$qval <= cutoff])
+age <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff])
 
-age <- c(full, sig, cec)
-age <- reduce(age)
-
-#get all combinations of segment comparisons
+#get segment comparison
 
 load("data/rdata/DMRs_segm.RData")
-full <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff])
-load("data/rdata/DMRs_young.RData")
-young <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff])
-load("data/rdata/DMRs_old.RData")
-old <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff])
-rm(DMRsage_annot, DMRsage_cecum_annot, DMRsage_sig_annot)
-
-seg <- c(full, young, old)
-seg <- reduce(seg)
+seg <- sort(DMRsage_annot[DMRsage_annot$qval <= cutoff])
 
 age_seg <- c(age, seg)
 age_seg <- reduce(age_seg)
 
 #get lesion regions without age or segment signal
-
-unique_less <- subsetByOverlaps(les_source, age_seg, invert = TRUE)
-unique_less
-save(unique_less,file = sprintf("data/rdata/uniqueDMRs_lesion_%g.RData", cutoff))
-
-df <- as.data.frame(unique_less)
-write.table(df, file = sprintf("data/tables/uniqueDMRs_lesion_%g.txt",cutoff), 
-            quote = FALSE, row.names = FALSE)
-
-
 # merged
 unique_less <- subsetByOverlaps(les, age_seg, invert = TRUE)
 unique_less
@@ -91,8 +69,6 @@ seqlevels(gr) <- paste0("chr",seqlevels(gr))
 
 
 #summarize meth val per region
-library(plyranges)
-library(dplyr)
 mcols(gr) <- meth
 hits <- findOverlaps(unique_less, gr)
 gr$DMR <- NA
@@ -146,8 +122,13 @@ idx2 <- lesions_diff > cutoff | ssa > cutoff | cadn > cutoff
 
 # Do filter
 sub_unique <- unique_less[idx & idx2]
-save(sub_unique, file = "data/rdata/unique_lesions_filt.RData")
 
-dfgr <- as.data.frame(sub_unique)
+#annotate
+source("scripts/get_table_with_annots.R")
+sub_uniqueannot <- get_table_with_annots(sub_unique, suffix = "chr")
+
+save(sub_uniqueannot, file = "data/rdata/unique_lesions_filt.RData")
+
+dfgr <- as.data.frame(sub_uniqueannot)[,-6]
 write.csv(dfgr, file = "data/tables/uniqueDMRs_lesion_merged_filt.txt", 
           quote = FALSE, row.names = FALSE)

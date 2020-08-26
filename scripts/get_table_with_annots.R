@@ -3,15 +3,12 @@
 #########################################################################################
 # R function to add annotations from annotatr to a GRanges
 #
-# MBD-seq with 7 metastatis untreated, 5 metastasis treated, 6 CRC, 3 normal mucosa
-# Collaboration with Mirco Menigatti and Giancarlo Marra
-#
 # Stephany Orjuela, February 2019
 #########################################################################################
 
-get_table_with_annots <- function(grreg){
+get_table_with_annots <- function(grreg, suffix = ""){
   
-  seqlevels(grreg) <- paste0("chr",seqlevels(grreg))
+  if(suffix == "") seqlevels(grreg) <- paste0("chr",seqlevels(grreg))
   annotscpg = c("hg19_cpg_islands", "hg19_cpg_shores",
                 "hg19_cpg_shelves", "hg19_cpg_inter")
   
