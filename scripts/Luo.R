@@ -39,7 +39,7 @@ mset$tissue <- factor(mset$description, levels = c("normal-H", "normal-C",
                                                    "adenoma", "cancer"))
 mset$dataset <- "Luo"
 saveRDS(mset, "data/public_data/luo.rds")
-
+#mset <- readRDS("data/public_data/luo.rds")
 #select females
 msetfem <- mset[,mset$`gender:ch1` %in% c("female", "Female")]
 
@@ -61,7 +61,7 @@ legend("top", legend=levels(factor(msetfem$location)), text.col=pal,
 #### Draw heatmap ####
 meth_vals <- as.matrix(getBeta(msetfem))
 
-draw_hm <- function(obj, regions, numregs){
+draw_hm <- function(obj, regions){
   gr <- rowRanges(obj)
   mcols(gr) <- meth_vals
   hits <- findOverlaps(regions, gr)
@@ -80,7 +80,8 @@ draw_hm <- function(obj, regions, numregs){
   #Get matrix
   madr <- rowVars(as.matrix(gr_dmr)[,-1])
   o <- order(madr, decreasing = TRUE)
-  score <- as.matrix(gr_dmr)[o,-1][1:numregs,]
+  score <- as.matrix(gr_dmr)[o,-1]
+  print(dim(score))
   
   #return(score)
   
@@ -127,7 +128,7 @@ draw_hm <- function(obj, regions, numregs){
                 show_column_dend = TRUE,
                 cluster_column_slices = FALSE,
                 #left_annotation = row_ha, ## remove with 3 groups
-                row_title = "selected markers", 
+                row_title = "tumor-unique DMR (5329)", 
                 column_title = "Samples",
                 column_title_side = "bottom",
                 column_names_gp = gpar(fontsize = 8),
@@ -139,7 +140,7 @@ draw_hm <- function(obj, regions, numregs){
 }
 
 load("data/rdata/unique_lesions_filt.RData")
-draw_hm(msetfem, sub_uniqueannot, 5000)
+draw_hm(msetfem, sub_uniqueannot)
 
 #### combine all markers into single signature ####
 

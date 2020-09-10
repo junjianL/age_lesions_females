@@ -222,23 +222,3 @@ hm_build(annotations_genes, idx, numregs= 1000, split = "age_group", numgroups =
 hm_build(annotations_genes, idx, numregs= 1000, numgroups = 1,
          title = "1000 most variable promoters", mostvar = TRUE, includeseg = TRUE)
 
-#### horvath age probes ####
-annot450k <- readr::read_csv("data/HumanMethylation450_15017482_v1-2_edited.csv")
-
-#probes from hovarth
-probes <- read.csv("data/13059_2013_3156_MOESM3_ESM.csv", header = TRUE)
-
-#get buil 37 locations from annot450k
-cidx <- match(probes$CpGmarker, annot450k$Name)
-cidx <- cidx[!is.na(cidx)]
-chr <- annot450k$CHR[idx]
-pos <- annot450k$MAPINFO[idx]
-
-idx <- colData(bsCombined)$tissue == "healthy" #select all normals
-idx <- colData(bsCombined)$state == "Normal"
-
-probesgr <- GRanges(paste0("chr",chr), IRanges(start = pos-1, end = pos))
-
-hm_build(probesgr, idx, numregs= 317, split = "age_group",
-         title = "aging clock sites", includeseg = TRUE)
-

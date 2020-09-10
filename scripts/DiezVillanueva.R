@@ -103,6 +103,7 @@ assay(diez, "pvalue") <- pvals
 
 diez$dataset <- "DiezVillanueva"
 saveRDS(diez, "data/public_data/diez.rds")
+#diez <- readRDS("data/public_data/diez.rds")
 
 # choose females
 diezfem <- diez[,diez$gender == "gender: Female"]
@@ -128,7 +129,7 @@ load("data/rdata/unique_lesions_filt.RData")
 # get probes in selected markers
 meth_vals <- as.matrix(getBeta(diezfem))
 
-draw_hm <- function(obj, regions, numregs){
+draw_hm <- function(obj, regions){
   gr <- rowRanges(obj)
   mcols(gr) <- meth_vals
   hits <- findOverlaps(regions, gr)
@@ -147,9 +148,10 @@ draw_hm <- function(obj, regions, numregs){
   #Get matrix
   madr <- rowVars(as.matrix(gr_dmr)[,-1])
   o <- order(madr, decreasing = TRUE)
-  score <- as.matrix(gr_dmr)[o,-1][1:numregs,]
+  score <- as.matrix(gr_dmr)[o,-1]
+  print(dim(score))
   
-  return(score)
+  #return(score)
   
   #Colors
   col <- RColorBrewer::brewer.pal(n = 9, name = "YlGnBu")
@@ -197,7 +199,7 @@ draw_hm <- function(obj, regions, numregs){
                 show_column_dend = TRUE,
                 cluster_column_slices = FALSE,
                 #left_annotation = row_ha, ## remove with 3 groups
-                row_title = "selected markers", 
+                row_title = "tumor-specific DMRs (5322)", 
                 column_title = "Samples",
                 column_title_side = "bottom",
                 column_names_gp = gpar(fontsize = 8),
@@ -205,10 +207,10 @@ draw_hm <- function(obj, regions, numregs){
                                             title_position = "lefttop-rot",
                                             grid_height = unit(1, "cm"),
                                             grid_width = unit(0.5, "cm")))
-  #return(hm)
+  return(hm)
 }
 
-draw_hm(diezfem, sub_unique, 2000)
+draw_hm(diezfem, sub_uniqueannot)
 
 ## non-selected regions
 library(annotatr)

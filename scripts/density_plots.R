@@ -28,6 +28,12 @@ gr <- gr[idx] #2,402,537
 annotsgene <- c("hg19_cpg_islands")
 annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
 
+#proms
+annotsgene <- c("hg19_genes_promoters")
+annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
+annotations_genes <- unique(annotations_genes) #unique transcripts, not genes
+annotations_genes <- annotations_genes[!duplicated(annotations_genes$gene_id)]
+
 grab_sites <- function(regions, gr, df){
   hits <- subjectHits(findOverlaps(regions, gr))
   dfsub <- df[hits,]
@@ -43,14 +49,6 @@ bsCombined$lesion_2 <- factor(bsCombined$lesion_2,
 
 df <- data.frame(t(methvalssub), Tissue = bsCombined$lesion_2, Sample = bsCombined$names)
 
-#too slow
-# df_mean <- df %>% 
-#   group_by(Tissue) %>% 
-#   summarise_at(
-#     head(colnames(df), -2), mean, na.rm=TRUE)
-
-#df_ssa <- colMeans(df[df$Tissue == "SSA",])
-
 df <- reshape2::melt(df, id.vars=c("Sample", "Tissue"),
                      value.name="Methylation")
 
@@ -61,10 +59,10 @@ ggplot(df) +
   # geom_line(aes_string(x="Methylation", col="Tissue", group = "Sample"),
   #           stat="density", fill = NULL, alpha = 0.1, adjust = 2) + 
   geom_line(aes_string(x="Methylation", col="Tissue"),
-            stat="density", fill = NULL, adjust = 3) + 
+            stat="density", fill = NULL, adjust = 5) + 
   theme_bw() +
-  ggtitle("CpG site methylation values in CpG islands")
-
+  ggtitle("CpG site methylation values in promoters")
+ggsave("density_promoters_yscalelog10.pdf")
 
 ### use lesion DMRs ####
 load("data/rdata/DMRs_lesions_3.RData")

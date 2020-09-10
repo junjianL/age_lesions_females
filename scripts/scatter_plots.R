@@ -116,7 +116,7 @@ load("data/rdata/DMRs_age_final.RData")
 age <- DMRsage_annot[DMRsage_annot$qval <= cutoff & DMRsage_annot$beta > 0]
 
 load("data/rdata/DMRs_segm.RData")
-seg <- DMRsage_annot[DMRsage_annot$qval <= cutoff & DMRsage_annot$beta > 0]
+seg <- DMRsage_annot[DMRsage_annot$qval <= cutoff & DMRsage_annot$beta < 0]
 
 # get df for each comparison and draw plot
 plot_meth <- function(regs, idx1, idx2, labx, laby){
@@ -127,6 +127,10 @@ plot_meth <- function(regs, idx1, idx2, labx, laby){
   prop1 <- rowMeans(methsub[,idx1], na.rm = TRUE)
   prop2 <- rowMeans(methsub[,idx2], na.rm = TRUE)
   dat <- data.frame(prop1, prop2)
+  
+  print(mean(prop1))
+  print(mean(prop2))
+  
   #return(dat)
   p <- ggplot(data = dat, aes(prop1, prop2)) +
     geom_bin2d() +
@@ -154,17 +158,10 @@ c <- plot_meth(age,
                colData(bsCombined)$lesion %in% c("cecum_old", "sigmoid_old"), 
                "Young", "Old")
 d <- plot_meth(seg, 
-               colData(bsCombined)$lesion %in% c("sigmoid_young", "sigmoid_old"),
                colData(bsCombined)$lesion %in% c("cecum_young", "cecum_old"),
-               "Sigmoid","Cecum")
+               colData(bsCombined)$lesion %in% c("sigmoid_young", "sigmoid_old"),
+               "Cecum","Sigmoid")
 
 
 cowplot::plot_grid(a,b,c,d, labels = "AUTO", ncol = 2)
 ggsave("scatter_methvals_inrespectice_hyperDMRs_2dens.pdf", width = 8, height = 6)
-
-
-# load("data/rdata/uniqueDMRs_lesion_0.05.RData")
-# plot_meth(unique_less, 
-#           grepl("Normal_",colData(bsCombined)$lesion),
-#           grepl("SSA|Adenoma", colData(bsCombined)$lesion), 
-#                "Normal", "Cancer")
