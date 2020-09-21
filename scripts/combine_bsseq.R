@@ -6,18 +6,30 @@ suppressPackageStartupMessages({
   library(ggplot2)
 })
 
-bsList <- list(bismarkBSseq, bismarkBSseq_les)
+load("data/rdata/bsseq_age_filt.RData")
+bsseq_age <- bismarkBSseq
+load("data/rdata/bsseq_lesions_filt.RData")
+
+bsList <- list(bsseq_age, bismarkBSseq)
 bsCombined <- combineList(bsList)
 
 #Filter
 loci.idx <- DelayedMatrixStats::rowSums2(getCoverage(bsCombined, type="Cov") >= 10 ) >= 38
-bsCombined <- bsCombined[loci.idx,]
+bsCombined <- bsCombined[loci.idx,] #2,407,522 loci
 
 save(bsCombined, file = "data/rdata/bsseqCombined.RData")
 
-#Get Cov and meth
+#save tab matrix in tab delimited format for ArrayExpress submission
 cov <- getCoverage(bsCombined, type = "Cov")
 meth <- getCoverage(bsCombined, type = "M")
+
+write.table(cov, file = "total_reads.txt")
+write.table(meth, file = "methylated_reads.txt")
+colData(bsCombined) #have to change colnames for names in table 1 of paper
+
+
+
+#add some metadata
 meth_vals <- meth /cov
 colnames(meth_vals) <- colData(bsCombined)$names
 colData(bsCombined)$state <- ifelse(is.na(colData(bsCombined)$state), 

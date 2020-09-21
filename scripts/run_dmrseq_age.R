@@ -38,7 +38,7 @@ bismarkBSseq <- read.bismark(files = infile,
                              dir = "data/HDF5_cov",
                              replace = TRUE) #26,660,520
 
-save(bismarkBSseq, file = "data/bsseq_cpgreport.RData")
+save(bismarkBSseq, file = "data/rdata/bsseq_cpgreport.RData")
 #load("data/bsseq_cpgreport.RData")
 
 #Filter coverage low
@@ -76,7 +76,7 @@ limitCov <- function(cov, meth, maxCov, object){
 }
 
 bismarkBSseq <- limitCov(cov, meth, quant, bismarkBSseq)
-colData(bismarkBSseq)$age_group <- as.factor(colData(bismarkBSseq)$age_group)
+save(bismarkBSseq, file="data/rdata/bsseq_age_filt.RData")
 
 #Generate bws
 cov <- getCoverage(bismarkBSseq, type = "Cov")
@@ -340,6 +340,7 @@ set.seed(1234)
 DMRsseg <- dmrseq(bs=bismarkBSseq,
                     testCovariate="segment",
                     adjustCovariate = "age_group",
+                    #adjustCovariate = "patient",
                     cutoff = 0.05, 
                     BPPARAM = MulticoreParam(3),
                     maxPerms = 20,

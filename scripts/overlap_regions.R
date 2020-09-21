@@ -32,6 +32,14 @@ o <- order(les_source$qval)
 les_source <- les_source[o]
 les <- reduce(les_source, with.revmap=TRUE)
 
+les$qvals <- lapply(les$revmap, function(u){
+  les_source$qval[u] 
+})
+
+les$comparison <- lapply(les$revmap, function(u){
+  les_source$comparison[u] 
+})
+
 # get age comparison
 
 load("data/rdata/DMRs_age_final.RData")
@@ -49,24 +57,35 @@ age_seg <- reduce(age_seg)
 # merged
 unique_less <- subsetByOverlaps(les, age_seg, invert = TRUE)
 unique_less
-save(unique_less,file = sprintf("data/rdata/uniqueDMRs_lesion_merged_%g.RData", cutoff))
 
-df <- as.data.frame(unique_less)
-write.table(df, file = sprintf("data/tables/uniqueDMRs_lesion_merged_%g.txt",cutoff), 
+#get unique age regions
+les_seg <- c(les, seg)
+les_seg <- reduce(les_seg)
+
+unique_age <- subsetByOverlaps(age, les_seg, invert = TRUE)
+df <- as.data.frame(unique_age)
+write.table(df, file = "data/tables/uniqueDMRs_age.txt",
+            quote = FALSE, row.names = FALSE)
+
+#get unique segment regions
+les_age <- c(les, age)
+les_age <- reduce(les_age)
+
+unique_seg <- subsetByOverlaps(seg, les_age, invert = TRUE)
+df <- as.data.frame(unique_seg)
+write.table(df, file = "data/tables/uniqueDMRs_segment.txt",
             quote = FALSE, row.names = FALSE)
 
 
-#### filter regions ####
+#### filter regions and get tumor-unique regions ####
 
 load("data/rdata/bsseq_lesions_filt.RData")
-#load("data/rdata/uniqueDMRs_lesion_merged_0.05.RData")
 
 #Get meth table
 gr <- rowRanges(bismarkBSseq)
 cov <- getCoverage(bismarkBSseq, type = "Cov")
 meth <- getCoverage(bismarkBSseq, type = "M")
 seqlevels(gr) <- paste0("chr",seqlevels(gr))
-
 
 #summarize meth val per region
 mcols(gr) <- meth
@@ -75,7 +94,7 @@ gr$DMR <- NA
 gr[subjectHits(hits)]$DMR <- queryHits(hits)
 gr_sub <- gr[!is.na(gr$DMR)]
 
-#methylation matrix
+#meth cov matrix
 meth_dmr <- gr_sub %>% 
   group_by(DMR) %>% 
   summarise_at(
@@ -111,6 +130,8 @@ get_change <- function(idx1, idx2){
 }
 
 lesions_diff <- get_change(!idxnorm, idxnorm)
+#plot(lesions_diff, lesions_diff2)
+
 ssa <- get_change(colData(bismarkBSseq)$lesion == "SSA", 
                   colData(bismarkBSseq)$lesion == "Normal_SSA")
 
@@ -123,12 +144,30 @@ idx2 <- lesions_diff > cutoff | ssa > cutoff | cadn > cutoff
 # Do filter
 sub_unique <- unique_less[idx & idx2]
 
+#add original qvalues to matrix
+qvalmat <- data.frame(matrix(NA, nrow = length(sub_unique), ncol=3))
+colnames(qvalmat) <- c("SSA+cADN", "SSA", "cADN")
+head(qvalmat)  
+
+for (u in 1:length(sub_unique)){
+  comps <- sub_unique$comparison[[u]]
+  comps <- comps[!duplicated(comps)]
+  
+  ord <- match(comps, colnames(qvalmat))
+  qvalmat[u,ord] <- sub_unique$qvals[[u]][!duplicated(comps)]
+}
+
+head(qvalmat)  
+mcols(sub_unique) <- qvalmat
+
 #annotate
 source("scripts/get_table_with_annots.R")
 sub_uniqueannot <- get_table_with_annots(sub_unique, suffix = "chr")
 
+#save object and file
 save(sub_uniqueannot, file = "data/rdata/unique_lesions_filt.RData")
 
-dfgr <- as.data.frame(sub_uniqueannot)[,-6]
-write.csv(dfgr, file = "data/tables/uniqueDMRs_lesion_merged_filt.txt", 
-          quote = FALSE, row.names = FALSE)
+dfgr <- as.data.frame(sub_uniqueannot)
+head(dfgr)
+write.table(dfgr, file = "data/tables/uniqueDMRs_lesion_merged_filt.txt", 
+          quote = FALSE, row.names = FALSE, sep = "\t")
