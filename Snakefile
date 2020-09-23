@@ -7,7 +7,7 @@ if len(config) == 0:
     sys.exit("Make sure there is a config.yaml file in " + os.getcwd() + " or specify one with the --configfile commandline parameter.")
 
 ## Make sure that all expected variables from the config file are in the config dictionary
-configvars = ['genome', 'metatxt', 'ncores', 'FASTQ', 'fqext1', 'fqext2', 'fqsuffix', 'output', 'useCondaR', 'Rbin', 'run_trimming']
+configvars = ['genome', 'metatxt', 'ncores', 'FASTQ', 'fqext1', 'fqext2', 'fqsuffix', 'output', 'run_trimming']
 for k in configvars:
 	if k not in config:
 		config[k] = None
@@ -53,9 +53,6 @@ if config["useCondaR"] == True:
 else:
 	Renv = "envs/environment.yaml"
 
-## Define the R binary
-Rbin = config["Rbin"]
-
 ## ------------------------------------------------------------------------------------ ##
 ## Target definitions
 ## ------------------------------------------------------------------------------------ ##
@@ -70,24 +67,6 @@ rule setup:
 		outputdir + "Rout/pkginstall_state.txt",
 		outputdir + "Rout/softwareversions.done"
 
-## Install R packages
-rule pkginstall:
-	input:
-		script = "scripts/install_pkgs.R"
-	output:
-	  outputdir + "Rout/pkginstall_state.txt"
-	params:
-		ncores = config["ncores"]
-	priority:
-		50
-	conda:
-		Renv
-	log:
-		outputdir + "Rout/install_pkgs.Rout"
-	benchmark:
-	  outputdir + "benchmarks/install_pkgs.txt"
-	shell:
-		'''{Rbin} CMD BATCH --no-restore --no-save "--args outtxt='{output}' ncores='{params.ncores}'" {input.script} {log}'''
 
 ## FastQC on original (untrimmed) files
 rule runfastqc:
@@ -107,19 +86,6 @@ rule runbismark:
 	input:
 		expand(outputdir + "bismark/{sample}_pe.bam", sample = samples.names.values.tolist())
 
-
-## List all the packages that were used by the R analyses
-rule listpackages:
-	log:
-		outputdir + "Rout/list_packages.Rout"
-	params:
-		Routdir = outputdir + "Rout",
-		outtxt = outputdir + "R_package_versions.txt",
-		script = "scripts/list_packages.R"
-	conda:
-		Renv
-	shell:
-		'''{Rbin} CMD BATCH --no-restore --no-save "--args Routdir='{params.Routdir}' outtxt='{params.outtxt}'" {params.script} {log}'''
 
 ## Print the versions of all software packages
 rule softwareversions:
@@ -296,8 +262,6 @@ rule bismarkPE:
 		"-1 {input.fastq1} -2 {input.fastq2}"
 		
 
-#Think about not doing deduplication
-
 rule extractMethylation:
 	input:
 		outputdir + "bismark/{sample}_pe.bam"
@@ -320,20 +284,6 @@ rule extractMethylation:
 		" --genome_folder {params.genome} --no_overlap --multicore {threads} --buffer_size 2G "
 		" -o {params.methdir} {input}"
 	
-## ------------------------------------------------------------------------------------ ##
-## Input variable check
-## ------------------------------------------------------------------------------------ ##
-
-## check design matrix and contrasts
-#rule checkinputs:
-
-       
-
-## ------------------------------------------------------------------------------------ ##
-## Differential methylation
-## ------------------------------------------------------------------------------------ ##
-#rule edgeR:
-
 
 ## ------------------------------------------------------------------------------------ ##
 ## Success and failure messages
