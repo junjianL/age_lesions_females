@@ -1,5 +1,5 @@
 ---
-title: "3D MDS Lesions + Age Samples"
+title: "3D MDS only normals"
 author: "Stephany Orjuela"
 date: "16/12/2019"
 output: html_document
@@ -14,19 +14,18 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(rgl)
 library(bsseq)
-library(dplyr)
-library(plyranges)
 
 load("~/age_females_meth/data/rdata/bsseqCombined.RData")
 ```
 
 
 ```{r, echo=F, include = F}
+bsCombined <- bsCombined[,bsCombined$state != "Cancer" | is.na(bsCombined$state)]
 #Get Cov and meth
 gr <- rowRanges(bsCombined)
 cov <- getCoverage(bsCombined, type = "Cov")
 meth <- getCoverage(bsCombined, type = "M")
-meth_vals <- data.frame(meth /cov)
+meth_vals <- meth /cov
 colnames(meth_vals) <- colData(bsCombined)$names
 mcols(gr) <- meth_vals
 
@@ -44,8 +43,7 @@ gr_dmr <- gr %>%
  
 #Transform
 methsTR <- asin(2*gr_dmr[,-1]-1)
-
-m3 <- limma::plotMDS(methsTR, dim.plot=c(1,3), top = 5000, labels = colnames(meth_vals))
+m3 <- limma::plotMDS(methsTR, dim.plot=c(1,3), top = 10000, labels = colnames(meth_vals))
 ```
 
 Red: Adenoma  
@@ -58,7 +56,7 @@ Brown: sigmoid_young
 Pink: SSA
 
 ```{r, echo=FALSE}
-myColor <- RColorBrewer::brewer.pal(8, "Set1")
+myColor <- RColorBrewer::brewer.pal(8, "Set1")[c(2,3,4,5,6,7)]
 m3cmds <- m3$cmdscale.out
 par3d(cex=1)
 plot3d(x = m3cmds[,1], y = m3cmds[,2], z = m3cmds[,3], xlab = "1", ylab = "2", zlab = "3", 
