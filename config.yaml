@@ -16,7 +16,7 @@ genome: /home/Shared_taupo/data/annotation/Human/Ensembl_GRCh37.97/genome/
 ## type: either SE or PE, indicating whether the sample was analyzed 
 ## via single-end or paired-end sequencing.
 
-metatxt: data/metadata.txt
+metatxt: metadata.txt
 
 ## Variables used for model fitting
 ## design: design formula for use with edgeR, camera and DRIMSeq. Must be a string 
