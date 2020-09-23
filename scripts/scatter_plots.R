@@ -92,7 +92,7 @@ dfsub <- df[hits,]
 #
 }
 
-df_proms <- grab_sites(annotations_genes, gr, df) #1,064,915
+df_proms <- grab_sites(annotations_genes, gr, df) #1,064,915, 402,616 proms
 df_proms <- df_proms[rowSums(df_proms) > 0,] #653,484
 
 GGally::ggpairs(df_proms,

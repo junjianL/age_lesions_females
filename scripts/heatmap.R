@@ -13,7 +13,7 @@ suppressPackageStartupMessages({
 
 
 #### load combined object ####
-load("data/bsseqCombined.RData")
+load("data/rdata/bsseqCombined.RData")
 
 #Get meth table
 gr <- rowRanges(bsCombined)
@@ -75,12 +75,14 @@ hm_build <- function(regions, sampleidx, numregs=2000, mostvar = FALSE,
     summarise_at(
       colnames(meth_vals), mean, na.rm=TRUE
     )
+  print(dim(gr_dmr))
   
   #Get matrix
   if(mostvar) {
   madr <- rowVars(as.matrix(gr_dmr)[,-1][,sampleidx])
   o <- order(madr, decreasing = TRUE)
   agg <- as.matrix(gr_dmr)[o,-1][1:numregs,sampleidx]
+  #return(regions[queryHits(hits)][o][1:numregs])
   } else agg <- as.matrix(gr_dmr)[,-1][1:numregs,sampleidx] 
 
   #seriation to order samples
@@ -199,13 +201,16 @@ hm_build(DMRsage_annot[DMRsage_annot$state == "hyper"], idx, numregs= 1000,
 dev.off()
 #### most variable promoters? ####
 
+#promoters
 annotsgene <- c("hg19_genes_promoters")
-
-annotsgene <- c("hg19_cpg_islands")
 
 annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
 annotations_genes <- unique(annotations_genes) #unique transcripts, not genes
 annotations_genes <- annotations_genes[!duplicated(annotations_genes$gene_id)]
+
+#islands
+annotsgene <- c("hg19_cpg_islands")
+annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
 
 idx <- colData(bsCombined)$tissue == "normal mucosa" #select all normals
 idx <- colData(bsCombined)$state == "Normal" #selet all healthy fems
@@ -214,11 +219,16 @@ idx <- rep(TRUE, ncol(bsCombined)) # all samples
 hm_build(annotations_genes, idx, numregs= 1000, split = "tissue", includeseg = TRUE,
          title = "1000 most variable promoters", mostvar = TRUE)
 
-
-hm_build(annotations_genes, idx, numregs= 1000, split = "age_group", numgroups = 1,
-         title = "1000 most variable promoters", mostvar = TRUE, includeseg = TRUE)
-
 #no split
 hm_build(annotations_genes, idx, numregs= 1000, numgroups = 1,
          title = "1000 most variable promoters", mostvar = TRUE, includeseg = TRUE)
 
+
+#count number of promoters overlapping islands of the ones here
+
+# isles <- hm_build(annotations_genes, idx, numregs= 1000, split = "tissue", includeseg = TRUE,
+#                   title = "1000 most variable promoters", mostvar = TRUE)
+# proms <- hm_build(annotations_genes, idx, numregs= 1000, split = "tissue", includeseg = TRUE,
+#                   title = "1000 most variable promoters", mostvar = TRUE)
+# 
+# subsetByOverlaps(proms, isles)

@@ -39,7 +39,8 @@ grab_sites <- function(regions, gr, df){
   dfsub <- df[hits,]
 }
 
-methvalssub <- grab_sites(annotations_genes, gr, meth_vals) #1,060,602      48
+methvalssub <- grab_sites(annotations_genes, gr, meth_vals) #1,060,602 islands
+# 400,905 proms
 
 #### draw densities ####
 bsCombined$lesion_2 <- gsub("sigmoid_|cecum_","", bsCombined$lesion)
