@@ -1,0 +1,13 @@
+names	type	patient	age	segment
+Y3_cecum	PE	Y3	38	cecum
+Y3_sigmoid	PE	Y3	38	sigmoid
+O1_cecum	PE	O1	71	cecum
+O1_sigmoid	PE	O1	71	sigmoid
+Y2_cecum	PE	Y2	37	cecum
+Y2_sigmoid	PE	Y2	37	sigmoid
+O2_cecum	PE	O2	78	cecum
+O2_sigmoid	PE	O2	78	sigmoid
+Y1_cecum	PE	Y1	33	cecum
+Y1_sigmoid	PE	Y1	33	sigmoid
+O3_cecum	PE	O3	80	cecum
+O3_sigmoid	PE	O3	80	sigmoid

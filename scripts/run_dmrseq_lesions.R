@@ -9,7 +9,7 @@ suppressPackageStartupMessages({
 })
 
 source("scripts/get_table_with_annots.R")
-metafile <- "data/metadata_serrated.txt" #36 samples, 18 patients
+metafile <- "metadata_lesions.txt" #36 samples, 18 patients
 #print(metafile)
 
 #Read in metadata
@@ -32,7 +32,7 @@ bismarkBSseq <- read.bismark(files = infile,
                              dir = "data/HDF5_lesion",
                              replace = TRUE) #27,546,598
 
-save(bismarkBSseq, file = "data/bsseq_lesions_cpgreport.RData")
+save(bismarkBSseq, file = "data/rdata/bsseq_lesions_cpgreport.RData")
 
 #Filter coverage low
 loci.idx <- DelayedMatrixStats::rowSums2(getCoverage(bismarkBSseq, type="Cov") >= 10 ) >= 28
@@ -69,7 +69,7 @@ bismarkBSseq <- limitCov(cov, meth, quant, bismarkBSseq)
 
 save(bismarkBSseq, file = "data/rdata/bsseq_lesions_filt.RData")
 
-#Generate bws
+#### Generate bigwigs ####
 cov <- getCoverage(bismarkBSseq, type = "Cov")
 meth <- getCoverage(bismarkBSseq, type = "M")
 meth_vals <- meth /cov * 100
@@ -119,7 +119,7 @@ sapply(colnames(meth_vals), make_bigwigs,
        chromsizesFile = "/home/Shared_taupo/steph/reference/hg19.chrom.sizes.modGL")
 
 
-#Get diagnostics
+#### Diagnostic plots ####
 mean_meth <- rowMeans(meth_vals) 
 mean_cov <- rowMeans(cov)
 var_meth <- rowVars(as.matrix(meth_vals))
@@ -129,11 +129,6 @@ d <- data.frame(mean_meth = mean_meth,
                 #diff = diffs,
                 var_meth = var_meth)
 
-#mean meth Vs mean cov
-# ggplot(d) + geom_point(aes(x= mean_cov, y = mean_meth), alpha = 0.1) + 
-#   geom_density_2d(aes(x= mean_cov, y = mean_meth)) +
-#   theme_bw()
-
 ggplot(d) + aes(x=mean_cov, y=mean_meth) + 
   geom_bin2d() + 
   scale_fill_distiller(palette='RdBu', trans='log10') + 
@@ -141,8 +136,6 @@ ggplot(d) + aes(x=mean_cov, y=mean_meth) +
   theme_bw()
 
 ggsave("figures/covVsmeth_lesions2.png")
-
-#MD  
 
 #MV
 ggplot(d) + aes(x=mean_cov, y=var_meth) + 
@@ -164,7 +157,7 @@ ggplot(meth_vals_melt) + geom_violin(aes(x = variable, y = value)) +
 ggsave("figures/meth_violins_lesions.png")
 
 
-## Run dmrseq
+#### Run dmrseq ####
 set.seed(1234)
 DMRsles <- dmrseq(bs=bismarkBSseq,
                   testCovariate="state", 
@@ -237,20 +230,3 @@ save(DMRsles_annot,file = "data/DMRs_lesions_cADN.RData")
 df <- as.data.frame(DMRsles_annot)
 write.table(df, file = "data/DMRs_lesions_cADN.txt", quote = FALSE, row.names = FALSE)
 
-
-#### tests ####
-
-bismarkBSseq$age_group <- ifelse(bismarkBSseq$age > 50, "old", "young")
-bismarkBSseq$state <- ifelse(grepl("Normal", bismarkBSseq$lesion), "Normal", "Cancer")
-
-## Run dmrseq including age as covariate
-set.seed(1234)
-DMRsles <- dmrseq(bs=bismarkBSseq,
-                  testCovariate="state", 
-                  cutoff = 0.1, 
-                  BPPARAM = MulticoreParam(3),
-                  adjustCovariate = c("patient", "age"),
-                  maxPerms = 20,
-                  maxGap = 100,
-                  maxGapSmooth = 1000,
-                  minNumRegion = 3) 

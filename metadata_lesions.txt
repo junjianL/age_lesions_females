@@ -1,16 +1,3 @@
-names	type	patient	age	segment lesion
-Y3_cecum	PE	Y3	38	cecum Normal
-Y3_sigmoid	PE	Y3	38	sigmoid Normal
-O1_cecum	PE	O1	71	cecum Normal
-O1_sigmoid	PE	O1	71	sigmoid Normal
-Y2_cecum	PE	Y2	37	cecum Normal
-Y2_sigmoid	PE	Y2	37	sigmoid Normal
-O2_cecum	PE	O2	78	cecum Normal
-O2_sigmoid	PE	O2	78	sigmoid Normal
-Y1_cecum	PE	Y1	33	cecum Normal
-Y1_sigmoid	PE	Y1	33	sigmoid Normal
-O3_cecum	PE	O3	80	cecum Normal
-O3_sigmoid	PE	O3	80	sigmoid Normal
 S1_SSA_bsseq	PE	S1	88	C	SSA
 S2_SSA_bsseq	PE	S2	68	A	SSA
 S3_SSA_bsseq	PE	S3	61	A	SSA
