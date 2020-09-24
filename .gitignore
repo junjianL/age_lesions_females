@@ -1,9 +1,11 @@
 .Rproj.user
 .Rhistory
-.RData
 .Ruserdata
 .snakemake/
 bigwigs
-data
 figures
 probe_design_sija
+data/methextract*
+data/HDF5*
+data/public_data
+data/*.txt
