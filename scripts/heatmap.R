@@ -1,5 +1,7 @@
-## Draw heatmap
+###################################################
+## Draw heatmaps for figure 1 and supp Fig 2, 3
 # Dec 17 2019
+###################################################
 
 suppressPackageStartupMessages({
   library(GenomicRanges)
@@ -13,7 +15,7 @@ suppressPackageStartupMessages({
 
 
 #### load combined object ####
-load("data/rdata/bsseqCombined.RData")
+load("data/rdata/bsseqCombined.RData") ## generated from combine_bsseq.R
 
 #Get meth table
 gr <- rowRanges(bsCombined)
@@ -57,11 +59,11 @@ age <- ifelse(colData(bsCombined)$age < 40, "<=40", "41-70")
 age <- ifelse(colData(bsCombined)$age > 70, ">70", age)
 colData(bsCombined)$age_group <- factor(age, levels = c("<=40", "41-70", ">70"))
 
-#### Function to get matrix, to get annotations, calculate seriation, draw HM ####
+#### Function to get matrix, to get annotations, draw heatmaps ####
 
 hm_build <- function(regions, sampleidx, numregs=2000, mostvar = FALSE, 
                      split = "age_group", includeseg = FALSE,
-                     title = "Most variable 2000 CpG promoters", numgroups = 1){
+                     title = "Most variable 2000 CpG promoters", numgroups = 2){
   
   hits <- findOverlaps(regions, gr)
   gr$DMR <- NA
@@ -96,11 +98,6 @@ hm_build <- function(regions, sampleidx, numregs=2000, mostvar = FALSE,
   conds <- as.character(unique(condit))
   meth_change <- rowMeans(agg[,condit == conds[2]]) - rowMeans(agg[,condit == conds[1]])
   }
-  
-  # ord <- seriation::get_order(seriation::seriate(dist(t(agg)), 
-  #                                                method = "MDS_angle"))
-  #                                                #margin = 2))
-  #agg <- agg[,ord]
   
   #Colors
   col <- RColorBrewer::brewer.pal(n = 9, name = "YlGnBu")
@@ -160,16 +157,16 @@ hm_build <- function(regions, sampleidx, numregs=2000, mostvar = FALSE,
   #Plot
   hm <- Heatmap(agg, 
           na_col = "white",
-          #column_split = colData(bsCombined)[,split][idx], #[ord]
+          column_split = colData(bsCombined)[,split][idx], #[ord]
           top_annotation = column_ha,
           col = col_fun,
-          #row_km = 2, 
+          row_km = 2, 
           clustering_distance_columns = "spearman",
           cluster_columns = TRUE,
           show_row_dend = FALSE,
           show_column_dend = TRUE,
           cluster_column_slices = FALSE,
-          #left_annotation = row_ha, ## remove with 3 groups
+          left_annotation = row_ha, ## remove with 3 groups
           row_title = title, 
           column_title = "Samples",
           column_title_side = "bottom",
@@ -183,45 +180,49 @@ hm_build <- function(regions, sampleidx, numregs=2000, mostvar = FALSE,
   return(hm)
 }
   
-#### Plotting supervised HM ####
+#### most variable CGIs and Promoters ####
 
-#Get top regions
-load("data/DMRs_age_final.RData")
+#Figure 1A
+#islands
+annotsgene <- c("hg19_cpg_islands")
+annotations_cgi = build_annotations(genome = 'hg19', annotations = annotsgene)
 
-#filtering
-DMRsage_annot$state <- ifelse(DMRsage_annot$beta > 0 & DMRsage_annot$qval < 0.05 , 
-                              "hyper", "none")
-DMRsage_annot$state <- ifelse(DMRsage_annot$beta < 0 & DMRsage_annot$qval < 0.05 , 
-                              "hypo", DMRsage_annot$state)
+idxfull <- rep(TRUE, ncol(bsCombined)) # all samples
 
-idx <- colData(bsCombined)$state == "Normal"
+hm_build(annotations_cgi, idxfull, numregs= 1000, split = "tissue", includeseg = TRUE,
+         title = "1000 most variable CpG Islands", mostvar = TRUE)
 
-hm_build(DMRsage_annot[DMRsage_annot$state == "hyper"], idx, numregs= 1000,
-         title = "Top 1000 age-DMRs", split = "age_group", includeseg = TRUE)
-dev.off()
-#### most variable promoters? ####
+#Figure 1B
+idx <- colData(bsCombined)$state == "Normal" #selet all healthy fems
+hm_build(annotations_cgi, idx, numregs= 1000, split = "age_group", includeseg = TRUE,
+         title = "1000 most variable CpG Islands", mostvar = TRUE)
 
+
+#Supp Figure 2A
 #promoters
 annotsgene <- c("hg19_genes_promoters")
-
 annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
 annotations_genes <- unique(annotations_genes) #unique transcripts, not genes
 annotations_genes <- annotations_genes[!duplicated(annotations_genes$gene_id)]
 
-#islands
-annotsgene <- c("hg19_cpg_islands")
-annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
+hm_build(annotations_genes, idxfull, numregs= 1000, split = "tissue",
+         title = "1000 most variable promoters", mostvar = TRUE, includeseg = TRUE)
 
-idx <- colData(bsCombined)$tissue == "normal mucosa" #select all normals
-idx <- colData(bsCombined)$state == "Normal" #selet all healthy fems
-idx <- rep(TRUE, ncol(bsCombined)) # all samples
-
-hm_build(annotations_genes, idx, numregs= 1000, split = "tissue", includeseg = TRUE,
+#Supp Figure 2B
+hm_build(annotations_genes, idx, numregs= 1000, split = "age_group", includeseg = TRUE,
          title = "1000 most variable promoters", mostvar = TRUE)
 
-#no split
-hm_build(annotations_genes, idx, numregs= 1000, numgroups = 1,
+
+#Supp Figure 3A
+idxnorm <- colData(bsCombined)$tissue == "normal mucosa" #select all normals
+
+hm_build(annotations_cgi, idxnorm, numregs= 1000, split = "age_group", numgroups = 3,
+         title = "1000 most variable CpG Islands", mostvar = TRUE, includeseg = TRUE)
+
+#Supp Figure 3B
+hm_build(annotations_cgi, idxnorm, numregs= 1000, split = "age_group", numgroups = 3,
          title = "1000 most variable promoters", mostvar = TRUE, includeseg = TRUE)
+
 
 
 #count number of promoters overlapping islands of the ones here

@@ -6,6 +6,8 @@
 # Stephany Orjuela, April 2020
 ################################################################################
 
+##NOTE: Need to have bedGraphToBigWig installed
+
 args <- (commandArgs(trailingOnly = TRUE))
 for (i in seq_len(length(args))) {
   eval(parse(text = args[[i]]))

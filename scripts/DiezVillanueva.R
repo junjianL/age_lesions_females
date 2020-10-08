@@ -1,5 +1,12 @@
-## Public data
+####################################################################
+## Code to download data from dataset GSE131013, 
+# and draw figure 4B
+#
+# first see file `data/public_data/DiezVillanueva_2020/README.md`
+# for file download
+#
 # August 4 2020
+####################################################################
 
 suppressPackageStartupMessages({
   library(GenomicRanges)
@@ -13,7 +20,6 @@ suppressPackageStartupMessages({
   library(plyranges)
 })
 
-## DiezVillanueva data
 
 #### re-format metadata ####
 metadatafull <- readr::read_delim("data/public_data/DiezVillanueva_2020/metadata.txt",
@@ -213,12 +219,12 @@ draw_hm <- function(obj, regions){
 draw_hm(diezfem, sub_uniqueannot)
 
 ## non-selected regions
-library(annotatr)
-annotsgene <- c("hg19_cpg_islands")
-annotations_genes <- build_annotations(genome = 'hg19', annotations = annotsgene)
+# library(annotatr)
+# annotsgene <- c("hg19_cpg_islands")
+# annotations_genes <- build_annotations(genome = 'hg19', annotations = annotsgene)
 
 
-#### combine all markers into single signature ####
+#### combine all markers into single signature and draw ROC ####
 
 combine_marks <- function(obj, regions){
   gr <- rowRanges(obj)

@@ -1,5 +1,7 @@
-## Upset plots 
+###########################################################
+## Upset plot from figure 3B 
 # nov 26 2019
+###########################################################
 
 suppressPackageStartupMessages({
   library(GenomicRanges)
@@ -30,20 +32,27 @@ load("data/rdata/DMRs_segm.RData")
 seg_full <- DMRsage_annot[DMRsage_annot$qval <= cutoff]
 
 # get overlap counts
-# this returns input to venndiagram, i transform this to input
+# this returns input to venndiagram, I transform this to input
 # for complexHeatmap
 
 #function is based on the Interval tree algorithm
-over <- findOverlapsOfPeaks(lesion, ssa, cadn, age_full, seg_full, 
+# over <- findOverlapsOfPeaks(lesion, ssa, cadn, age_full, seg_full, 
+#                             connectedPeaks = "keepAll")
+over <- findOverlapsOfPeaks(ssa, cadn, age_full, seg_full, 
                             connectedPeaks = "keepAll")
-mat <- data.frame(over$venn_cnt[,1:5])
-total_counts <- over$venn_cnt[,6]
+
+# mat <- data.frame(over$venn_cnt[,1:5])
+# total_counts <- over$venn_cnt[,6]
+
+mat <- data.frame(over$venn_cnt[,1:4])
+total_counts <- over$venn_cnt[,5]
+
 
 #Repeat rows `counts` number of times
 fillin <- sapply(1:nrow(mat), function(u){
   if(total_counts[u] > 0) {
     reps <- unlist(rep(mat[u,], total_counts[u]))
-    matrix(reps, ncol = 5, byrow = TRUE)
+    matrix(reps, ncol = ncol(mat), byrow = TRUE)
   } else NULL
 })
 
@@ -95,8 +104,8 @@ upset_withnumbers <- function(m, color, order_vec){
   })
 }
 
-pdf("upsets_DMRs.pdf", width = 10, height = 6)
+pdf("upsets_DMRs_3groups.pdf", width = 10, height = 6)
 
-upset_withnumbers(m, "#756bb1", c("lesion", "ssa", "cadn",
+upset_withnumbers(m, "#756bb1", c("ssa", "cadn",
                                   "age_full","seg_full"))
 dev.off()

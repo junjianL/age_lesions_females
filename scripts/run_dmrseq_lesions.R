@@ -1,5 +1,11 @@
-## Run dmrseq lesions
+################################################################################
+# R script to read-in CpG-report files from bismark (in snakemake workflow), 
+# limit coverage, generate diagnostic plots, and detect differentially methylated
+# regions in samples with pre-cancerous lesions
+#
 # nov 25 2019
+################################################################################
+
 
 suppressPackageStartupMessages({
   library(dmrseq)

@@ -1,5 +1,8 @@
-## Explore effect sizes
+##############################################################
+## Plot figures 2B, 3A and supp 4B 
+# additional details in plots added with photoshop. not by me.
 # July 16 2020
+##############################################################
 
 suppressPackageStartupMessages({
   library(GenomicRanges)
@@ -21,8 +24,10 @@ meth <- getCoverage(bsCombined, type = "M")
 seqlevels(gr) <- paste0("chr",seqlevels(gr))
 meth_vals <- meth / cov
 
-#### Plot effect sizes ####
-# in dmrseq this is defines as:
+
+
+#### Figure 2B ####
+# in dmrseq methylation change is defined as:
 # The estimate of the mean methylation proportion is for loci i in condition s 
 # is taken to be the sum of methylated reads from all samples in that condition 
 # divided by the sum of all reads (i.e. the coverage) from all samples in condition s.
@@ -52,7 +57,7 @@ df <- data.frame("SSA/P" = ssa,
                  Age = age,
                  Segment = seg)
 
-# pairs
+#custom functions to input in ggpairs
 
 custom_func <- function(data, mapping){
   ggplot(data = data, mapping = mapping) +
@@ -77,10 +82,10 @@ GGally::ggpairs(df,
 ## within genomic compartments
 
 #promoters
-annotsgene <- c("hg19_genes_promoters")
-annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
-annotations_genes <- unique(annotations_genes) #unique transcripts, not genes
-annotations_genes <- annotations_genes[!duplicated(annotations_genes$gene_id)]
+# annotsgene <- c("hg19_genes_promoters")
+# annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
+# annotations_genes <- unique(annotations_genes) #unique transcripts, not genes
+# annotations_genes <- annotations_genes[!duplicated(annotations_genes$gene_id)]
 
 #islands
 annotsgene <- c("hg19_cpg_islands")
@@ -89,7 +94,6 @@ annotations_genes <- build_annotations(genome = 'hg19', annotations = annotsgene
 grab_sites <- function(regions, gr, df){
 hits <- subjectHits(findOverlaps(regions, gr))
 dfsub <- df[hits,]
-#
 }
 
 df_proms <- grab_sites(annotations_genes, gr, df) #1,064,915, 402,616 proms
@@ -102,7 +106,7 @@ GGally::ggpairs(df_proms,
   theme_bw()
 
 
-#### Plot meth values ####
+#### Figure 3A ####
 
 #choose DMR lists
 cutoff <- 0.05
@@ -131,10 +135,8 @@ plot_meth <- function(regs, idx1, idx2, labx, laby){
   print(mean(prop1))
   print(mean(prop2))
   
-  #return(dat)
   p <- ggplot(data = dat, aes(prop1, prop2)) +
     geom_bin2d() +
-    #geom_density_2d(color = "black") +
     scale_fill_distiller(palette='RdBu', trans='log10', limits = c(1,10605)) +
     geom_abline() +
     ylab(laby) + xlab(labx) +
@@ -164,4 +166,4 @@ d <- plot_meth(seg,
 
 
 cowplot::plot_grid(a,b,c,d, labels = "AUTO", ncol = 2)
-ggsave("scatter_methvals_inrespectice_hyperDMRs_2dens.pdf", width = 8, height = 6)
+#ggsave("scatter_methvals_inrespectice_hyperDMRs_2dens.pdf", width = 8, height = 6)

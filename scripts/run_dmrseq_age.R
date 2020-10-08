@@ -1,6 +1,10 @@
-
-## Run dmrseq
+################################################################################
+# R script to read-in CpG-report files from bismark (in snakemake workflow), 
+# limit coverage, generate diagnostic plots, and detect differentially methylated
+# regions in healthy samples
+#
 # oct 21 2019
+################################################################################
 
 suppressPackageStartupMessages({
   library(dmrseq)
@@ -23,7 +27,6 @@ metadata$age_group <- ifelse(metadata$age > 50, "old", "young")
 
 #Read in cov files
 bismarkBSseq <- read.bismark(files = infile,
-                             #files= infile2,
                              rmZeroCov = TRUE,
                              strandCollapse = TRUE,
                              verbose = TRUE, 
@@ -34,7 +37,7 @@ bismarkBSseq <- read.bismark(files = infile,
                              dir = "data/HDF5_cov",
                              replace = TRUE) #26,660,520
 
-save(bismarkBSseq, file = "data/rdata/bsseq_cpgreport.RData")
+#save(bismarkBSseq, file = "data/rdata/bsseq_cpgreport.RData")
 
 #Filter coverage low
 loci.idx <- DelayedMatrixStats::rowSums2(getCoverage(bismarkBSseq, type="Cov") >= 10 ) >= 10
@@ -44,7 +47,7 @@ bismarkBSseq <- bismarkBSseq[loci.idx,] #2,481,876
 loci.idx <- seqnames(bismarkBSseq) %in% c(1:22)
 bismarkBSseq <- bismarkBSseq[loci.idx,] #2,418,647
 
-#or from BiSeq
+#limit coverage
 cov <- getCoverage(bismarkBSseq, type = "Cov")
 meth <- getCoverage(bismarkBSseq, type = "M")
 ind.cov <- cov > 0
@@ -67,60 +70,7 @@ limitCov <- function(cov, meth, maxCov, object){
 }
 
 bismarkBSseq <- limitCov(cov, meth, quant, bismarkBSseq)
-save(bismarkBSseq, file="data/rdata/bsseq_age_filt.RData") #too large for github
-
-#### Generate bigwig files ####
-
-##NOTE: Need to have bedGraphToBigWig installed
-
-cov <- getCoverage(bismarkBSseq, type = "Cov")
-meth <- getCoverage(bismarkBSseq, type = "M")
-meth_vals <- meth /cov * 100
-colnames(meth_vals) <- colData(bismarkBSseq)$names
-
-make_bigwigs <- function(sample, bs, meth_vals, folder, chromsizesFile){
-  #make dataframe with midpoint and score for file
-  bg <- data.frame(chr = GenomeInfoDb::seqnames(bs),
-                   start = start(bs),
-                   end = end(bs),
-                   score = abs(meth_vals[,grep(sample, colnames(meth_vals))]),
-                   stringsAsFactors = F,
-                   row.names = NULL)
-  
-  #remove NAs (this is just to double check, the user should input a filtered
-  #matrix)
-  bg <- bg[!is.na(meth_vals[,grep(sample, colnames(meth_vals))]),]
-  
-  if(folder == "."){
-    folder = ""
-  } else {folder = paste0(folder,"/")}
-  
-  #make bedgraph
-  scorename <- "meth"
-  write.table(bg, file = sprintf("%s%s.%s.bedgraph", folder, scorename, sample),
-              sep = "\t", row.names = F, col.names = F, quote = F)
-  
-  #sort file
-  cmd1 <- sprintf(
-    "sort -k1,1 -k2,2n %s%s.%s.bedgraph > %s%s.%s.sorted.bedgraph",
-    folder, scorename, sample, folder, scorename, sample)
-  cat(cmd1, "\n")
-  system(cmd1)
-  
-  #then make bigwig
-  cmd2 <- sprintf("bedGraphToBigWig %s%s.%s.sorted.bedgraph %s %s%s.%s.bw",
-                  folder, scorename, sample, chromsizesFile, folder, 
-                  scorename, sample)
-  cat(cmd2, "\n")
-  system(cmd2)
-}
-
-sapply(colnames(meth_vals), make_bigwigs, 
-       bs = bismarkBSseq, 
-       meth_vals = meth_vals,
-       folder = ".", 
-       chromsizesFile = "/home/Shared_taupo/steph/reference/hg19.chrom.sizes.modGL")
-
+#save(bismarkBSseq, file="data/rdata/bsseq_age_filt.RData") #too large for github
 
 #### Diagnostic plots ####
 mean_meth <- rowMeans(meth_vals) 
@@ -175,7 +125,7 @@ ggplot(meth_vals_melt) + geom_violin(aes(x = variable, y = value)) +
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
 ggsave("figures/meth_violins.png")
 
-#histogram meth_diffs
+#density meth_diffs
 
 meth_vals <- meth_vals[,-13]
 
@@ -205,13 +155,6 @@ d2 <- data.frame(beta = c(diffs_cecum, diffs_sigmoid),
 ggplot(d2) + geom_density(aes(x = beta, color = section)) +
   theme_bw()
 ggsave("figures/hist_betas_persection.png")
-
-
-#cov per sample
-# cov_vals_melt <- reshape2::melt(cov, measure.vars = metadata$names)
-# ggplot(cov_vals_melt) + geom_violin(aes()) +
-#   theme_bw()
-# ggsave("figures/cov_violins.png")
 
 
 #### Run dmrseq ####

@@ -1,5 +1,8 @@
-## Public data
+##########################################################
+## Code to download data from dataset GSE48684, 
+# and draw figure 4A
 # August 25 2020
+##########################################################
 
 suppressPackageStartupMessages({
   library(GenomicRanges)
@@ -40,9 +43,12 @@ mset$tissue <- factor(mset$description, levels = c("normal-H", "normal-C",
 mset$dataset <- "Luo"
 saveRDS(mset, "data/public_data/luo.rds")
 #mset <- readRDS("data/public_data/luo.rds")
+
 #select females
 msetfem <- mset[,mset$`gender:ch1` %in% c("female", "Female")]
 
+
+#### Code not used in paper ####
 #draw MDS plots
 pal <- brewer.pal(8,"Dark2")
 
@@ -121,13 +127,11 @@ draw_hm <- function(obj, regions){
                 column_split = obj$tissue,
                 top_annotation = column_ha,
                 col = col_fun,
-                #row_km = 2, 
                 clustering_distance_columns = "spearman",
                 cluster_columns = TRUE,
                 show_row_dend = FALSE,
                 show_column_dend = TRUE,
                 cluster_column_slices = FALSE,
-                #left_annotation = row_ha, ## remove with 3 groups
                 row_title = "tumor-unique DMR (5329)", 
                 column_title = "Samples",
                 column_title_side = "bottom",
@@ -142,7 +146,7 @@ draw_hm <- function(obj, regions){
 load("data/rdata/unique_lesions_filt.RData")
 draw_hm(msetfem, sub_uniqueannot)
 
-#### combine all markers into single signature ####
+#### combine all markers into single signature and draw ROC ####
 
 combine_marks <- function(obj, regions){
   gr <- rowRanges(obj)

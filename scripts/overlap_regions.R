@@ -1,5 +1,8 @@
-## Overlap Regions
+################################################################################
+# R script to obtain lesion-unique biomarkers, based on the detected DMRs
+#
 # jul 2020
+################################################################################
 
 suppressPackageStartupMessages({
   library(GenomicRanges)
@@ -10,7 +13,7 @@ suppressPackageStartupMessages({
 })
 
 
-#### Get regions that are uniquely in pre-lesions ####
+#### Get regions that are unique in pre-lesions ####
 
 cutoff <- 0.05
 
