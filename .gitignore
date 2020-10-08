@@ -2,10 +2,12 @@
 .Rhistory
 .Ruserdata
 .snakemake/
+.rds
 bigwigs
 figures
 probe_design_sija
 data/methextract*
 data/HDF5*
-data/public_data
+data/public_data/Wang_2020
+data/public_data/Luebeck_2019
 data/*.txt
