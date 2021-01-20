@@ -10,7 +10,7 @@ All files outside the `scripts/` folder are necessary to run a Snakemake workflo
 
 `snakemake --use-conda -cores 1` similar to the [ARMOR pipeline](https://github.com/csoneson/ARMOR)
 
-Before running the pipeline, raw FASTQ files must be downloaded from [here](https://www.ebi.ac.uk/ena/browser/view/PRJEB27521) (lesion females) and [here]() (healthy females). The location of the FASTQ files must be specified in `config.yaml`. Please download the files from the "Submitted FTP" section, because the file names match the names in `metadata_*.txt`
+Before running the pipeline, raw FASTQ files must be downloaded from [here](https://www.ebi.ac.uk/ena/browser/view/PRJEB27521) (lesion females) and [here](https://www.ebi.ac.uk/ena/browser/view/PRJEB40783) (healthy females). The location of the FASTQ files must be specified in `config.yaml`. Please download the files from the "Submitted FTP" section, because the file names match the names in `metadata_*.txt`
 
 *Folder description*: 
 * `scripts/`
