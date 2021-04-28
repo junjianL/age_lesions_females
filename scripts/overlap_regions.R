@@ -61,11 +61,17 @@ age_seg <- reduce(age_seg)
 unique_less <- subsetByOverlaps(les, age_seg, invert = TRUE)
 unique_less
 
+#get lesion regions without segment signal, keep age
+# merged
+#unique_less_wage <- subsetByOverlaps(les, seg, invert = TRUE)
+#unique_less_wage
+
 #get unique age regions
 les_seg <- c(les, seg)
 les_seg <- reduce(les_seg)
 
 unique_age <- subsetByOverlaps(age, les_seg, invert = TRUE)
+save(unique_age, file = "data/rdata/uniqueDMRs_age.RData")
 df <- as.data.frame(unique_age)
 write.table(df, file = "data/tables/uniqueDMRs_age.txt",
             quote = FALSE, row.names = FALSE)
@@ -81,6 +87,7 @@ write.table(df, file = "data/tables/uniqueDMRs_segment.txt",
 
 
 #### filter regions and get tumor-unique regions ####
+#unique_less <- unique_less_wage
 
 load("data/rdata/bsseq_lesions_filt.RData")
 

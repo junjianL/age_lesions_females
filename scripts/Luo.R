@@ -84,9 +84,9 @@ draw_hm <- function(obj, regions){
     )
   
   #Get matrix
-  madr <- rowVars(as.matrix(gr_dmr)[,-1])
-  o <- order(madr, decreasing = TRUE)
-  score <- as.matrix(gr_dmr)[o,-1]
+  #madr <- rowVars(as.matrix(gr_dmr)[,-1])
+  #o <- order(madr, decreasing = TRUE)
+  score <- as.matrix(gr_dmr)[,-1]
   print(dim(score))
   
   #return(score)
@@ -161,7 +161,7 @@ combine_marks <- function(obj, regions){
   gr_dmr <- gr_sub %>% 
     group_by(DMR) %>% 
     summarise_at(
-      colnames(meth_vals), mean, na.rm=TRUE
+      colnames(meth_vals), median, na.rm=TRUE
     )
   
   #Get matrix
@@ -176,3 +176,13 @@ pROC::roc(truth, mean_betas, direction = "<", plot = TRUE,
           main= "Combined selected markers, Luo 2014",
           percent=TRUE, print.auc=TRUE, print.thres = "best")
 
+
+#calculate ROC for DMRs including age (les without seg, but with age)
+load("data/rdata/les_with_age.RData")
+mean_betas <- combine_marks(msetfem, sub_unique)
+
+#set truth and draw ROC
+truth <- ifelse(msetfem$tissue %in% c("adenoma","cancer"), 1,0)
+pROC::roc(truth, mean_betas, direction = "<", plot = TRUE,
+          main= "Combined selected markers with age, Luo 2014",
+          percent=TRUE, print.auc=TRUE, print.thres = "best")
