@@ -1,14 +1,66 @@
-#!/usr/bin/env Rscript
+####################################################################
+## Code to annotate CpGs captured and DMRs
+#
+# July 30 2020
+####################################################################
 
+suppressPackageStartupMessages({
 library(ggplot2)
 library(tibble)
 library(cowplot)
 library(GenomicRanges)
 library(annotatr)
+library(bsseq)
+})
 
+
+#### Anotate all CpGs covered in the tech, and calculate percentages ####
+load("data/rdata/bsseqCombined.RData")
+gr <- rowRanges(bsCombined)
+seqlevels(gr) <- paste0("chr",seqlevels(gr))
+
+annotscpg = c("hg19_cpg_islands", "hg19_cpg_shores",
+              "hg19_cpg_shelves")
+
+annotations = build_annotations(genome = 'hg19', annotations = annotscpg)
+
+dm_annotated = annotate_regions(
+  regions = gr,
+  annotations = annotations,
+  ignore.strand = TRUE,
+  quiet = FALSE)
+
+
+anno_df <- summarize_annotations(dm_annotated)
+anno_df$n / nrow(bsCombined) * 100
+# annot.type             n
+# <chr>              <int>
+#   1 hg19_cpg_islands 1064915
+# 2 hg19_cpg_shelves  150944
+# 3 hg19_cpg_shores   456566
+
+#genes
+annotsgene <- c("hg19_genes_promoters", "hg19_genes_3UTRs", "hg19_genes_introns", 
+                "hg19_genes_exons", "hg19_genes_5UTRs", "hg19_genes_cds",
+                "hg19_genes_1to5kb")
+
+annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
+
+dm_annotated = annotate_regions(
+  regions = gr,
+  annotations = annotations_genes,
+  ignore.strand = TRUE,
+  quiet = FALSE)
+
+
+anno_df <- summarize_annotations(dm_annotated)
+anno_df$n / nrow(bsCombined) * 100
+
+#### plot DMR annotations ####
 
 load("data/DMRs_lesions_3.RData")
 load("data/DMRs_age_final.RData")
+load("data/rdata/unique_lesions_filt.RData")
 
 
 #dirty filtering

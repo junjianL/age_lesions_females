@@ -67,7 +67,7 @@ legend("top", legend=levels(factor(msetfem$location)), text.col=pal,
 #### Draw heatmap ####
 meth_vals <- as.matrix(getBeta(msetfem))
 
-draw_hm <- function(obj, regions){
+draw_hm <- function(obj, regions, meth_vals, ylab){
   gr <- rowRanges(obj)
   mcols(gr) <- meth_vals
   hits <- findOverlaps(regions, gr)
@@ -84,12 +84,27 @@ draw_hm <- function(obj, regions){
     )
   
   #Get matrix
-  #madr <- rowVars(as.matrix(gr_dmr)[,-1])
-  #o <- order(madr, decreasing = TRUE)
   score <- as.matrix(gr_dmr)[,-1]
   print(dim(score))
   
-  #return(score)
+  #Get AUC, TPR, 1-FPR
+  truth <- ifelse(obj$tissue %in% c("adenoma","cancer"), 1,0)
+  auc <- apply(score, 1, function(u){
+    rocc <- pROC::roc(truth, u, direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
+    pROC::auc(rocc)
+  })
+  
+  sens <- apply(score, 1, function(u){
+    rocc <- pROC::roc(truth, u, direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
+    thresh <- pROC::coords(rocc, "best", transpose = TRUE)
+    thresh[[3]]
+  })
+  
+  spec <- apply(score, 1, function(u){
+    rocc <- pROC::roc(truth, u, direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
+    thresh <- pROC::coords(rocc, "best", transpose = TRUE)
+    thresh[[2]]
+  })
   
   #Colors
   col <- RColorBrewer::brewer.pal(n = 9, name = "YlGnBu")
@@ -100,6 +115,11 @@ draw_hm <- function(obj, regions){
   
   #hm colors
   col_fun <- circlize::colorRamp2(c(0,0.2,1), c(col[9], col[7], col_anot[6]))
+  
+  #row annot colors
+  col_auc <- circlize::colorRamp2(c(0,50,100), c("#636363","#bdbdbd", "#dd1c77"))
+  col_tpr <- circlize::colorRamp2(c(0,50,100), c("#636363","#bdbdbd", "#1c9099"))
+  col_fpr <- circlize::colorRamp2(c(0,50,100), c("#636363","#bdbdbd", "#de2d26"))
   
   #annot colors
   col_tis <- greens[1:nlevels(obj$tissue)]
@@ -116,6 +136,13 @@ draw_hm <- function(obj, regions){
                                             Tissue = col_tis,
                                             Location = col_seg), 
                                  gp = gpar(col = "black"))
+  #row annot
+  row_ha <- rowAnnotation("AUC" = auc,
+                          "TPR" = sens,
+                          "1-FPR" = spec,
+                          col = list("AUC" = col_auc,
+                                     "TPR" = col_tpr,
+                                     "1-FPR" = col_fpr))
   
   #remove names
   rownames(score) <- colnames(score) <- NULL
@@ -126,13 +153,14 @@ draw_hm <- function(obj, regions){
                 na_col = "white",
                 column_split = obj$tissue,
                 top_annotation = column_ha,
+                right_annotation = row_ha,
                 col = col_fun,
                 clustering_distance_columns = "spearman",
                 cluster_columns = TRUE,
                 show_row_dend = FALSE,
                 show_column_dend = TRUE,
                 cluster_column_slices = FALSE,
-                row_title = "tumor-unique DMR (5329)", 
+                row_title = ylab, 
                 column_title = "Samples",
                 column_title_side = "bottom",
                 column_names_gp = gpar(fontsize = 8),
@@ -144,7 +172,7 @@ draw_hm <- function(obj, regions){
 }
 
 load("data/rdata/unique_lesions_filt.RData")
-draw_hm(msetfem, sub_uniqueannot)
+draw_hm(msetfem, sub_uniqueannot, meth_vals, "Tumorigenesis-specific DMRs (5329)")
 
 #### combine all markers into single signature and draw ROC ####
 
@@ -170,19 +198,36 @@ combine_marks <- function(obj, regions){
 }
 mean_betas <- combine_marks(msetfem, sub_uniqueannot)
 
-#set truth and draw ROC
-truth <- ifelse(msetfem$tissue %in% c("adenoma","cancer"), 1,0)
-pROC::roc(truth, mean_betas, direction = "<", plot = TRUE,
-          main= "Combined selected markers, Luo 2014",
+#set truth and draw ROC for aden and cancer separatelly
+
+#adenoma
+idx <- msetfem$tissue != "cancer"
+aden <- droplevels(msetfem$tissue[idx])
+mean_aden <- mean_betas[idx] 
+
+truth <- ifelse(aden == "adenoma", 1,0)
+pROC::roc(truth, mean_aden, direction = "<", plot = TRUE,
+          main= "Combined selected markers, Luo 2014 (adenoma)",
+          percent=TRUE, print.auc=TRUE, print.thres = "best")
+
+#cancer
+
+idx <- msetfem$tissue != "adenoma"
+aden <- droplevels(msetfem$tissue[idx])
+mean_aden <- mean_betas[idx] 
+
+truth <- ifelse(aden == "cancer", 1,0)
+pROC::roc(truth, mean_aden, direction = "<", plot = TRUE,
+          main= "Combined selected markers, Luo 2014 (cancer)",
           percent=TRUE, print.auc=TRUE, print.thres = "best")
 
 
-#calculate ROC for DMRs including age (les without seg, but with age)
-load("data/rdata/les_with_age.RData")
-mean_betas <- combine_marks(msetfem, sub_unique)
-
-#set truth and draw ROC
-truth <- ifelse(msetfem$tissue %in% c("adenoma","cancer"), 1,0)
-pROC::roc(truth, mean_betas, direction = "<", plot = TRUE,
-          main= "Combined selected markers with age, Luo 2014",
-          percent=TRUE, print.auc=TRUE, print.thres = "best")
+# #calculate ROC for DMRs including age (les without seg, but with age)
+# load("data/rdata/les_with_age.RData")
+# mean_betas <- combine_marks(msetfem, sub_unique)
+# 
+# #set truth and draw ROC
+# truth <- ifelse(msetfem$tissue %in% c("adenoma","cancer"), 1,0)
+# pROC::roc(truth, mean_betas, direction = "<", plot = TRUE,
+#           main= "Combined selected markers with age, Luo 2014",
+#           percent=TRUE, print.auc=TRUE, print.thres = "best")

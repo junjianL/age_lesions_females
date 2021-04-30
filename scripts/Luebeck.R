@@ -1,5 +1,10 @@
-## Public data
+####################################################################
+## Code to download data from dataset GSE113904, 
+# and draw heatmaps
+#
+#
 # August 4 2020
+####################################################################
 # Took some ideas from here https://f1000research.com/articles/5-1281/v3
 
 suppressPackageStartupMessages({

@@ -96,7 +96,7 @@ rmethcoad$patient.gender <- factor(rmethcoad$patient.gender)
 
 #### Draw heatmap ####
 
-draw_hm <- function(obj, regions, meth_vals){
+draw_hm <- function(obj, regions, meth_vals, ylab){
   gr <- rowRanges(obj)
   seqlevels(gr) <- paste0("chr",seqlevels(gr))
   mcols(gr) <- meth_vals
@@ -120,7 +120,24 @@ draw_hm <- function(obj, regions, meth_vals){
   score <- as.matrix(gr_dmr)[o,-1]
   print(dim(score))
   
-  #return(score)
+  #Get AUC, TPR, 1-FPR
+  truth <- ifelse(obj$tissue == "Primary Solid Tumor", 1,0)
+  auc <- apply(score, 1, function(u){
+    rocc <- pROC::roc(truth, u, direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
+    pROC::auc(rocc)
+  })
+  
+  sens <- apply(score, 1, function(u){
+    rocc <- pROC::roc(truth, u, direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
+    thresh <- pROC::coords(rocc, "best", transpose = TRUE)
+    thresh[[3]]
+  })
+  
+  spec <- apply(score, 1, function(u){
+    rocc <- pROC::roc(truth, u, direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
+    thresh <- pROC::coords(rocc, "best", transpose = TRUE)
+    thresh[[2]]
+  })
   
   #Colors
   col <- RColorBrewer::brewer.pal(n = 9, name = "YlGnBu")
@@ -131,6 +148,11 @@ draw_hm <- function(obj, regions, meth_vals){
   
   #hm colors
   col_fun <- circlize::colorRamp2(c(0,0.2,1), c(col[9], col[7], col_anot[6]))
+  
+  #row annot colors
+  col_auc <- circlize::colorRamp2(c(0,50,100), c("#636363","#bdbdbd", "#dd1c77"))
+  col_tpr <- circlize::colorRamp2(c(0,50,100), c("#636363","#bdbdbd", "#1c9099"))
+  col_fpr <- circlize::colorRamp2(c(0,50,100), c("#636363","#bdbdbd", "#de2d26"))
   
   #annot colors
   col_tis <- greens[1:nlevels(obj$tissue)]
@@ -152,6 +174,15 @@ draw_hm <- function(obj, regions, meth_vals){
       Tissue = col_tis,
       Gender = col_gen))
   
+  #row annot
+  row_ha <- rowAnnotation("AUC" = auc,
+                          "TPR" = sens,
+                          "1-FPR" = spec,
+                          col = list("AUC" = col_auc,
+                                     "TPR" = col_tpr,
+                                     "1-FPR" = col_fpr))
+
+  
   #remove names
   rownames(score) <- colnames(score) <- NULL
   
@@ -159,15 +190,16 @@ draw_hm <- function(obj, regions, meth_vals){
   hm <- Heatmap(score, 
                 use_raster = TRUE,
                 na_col = "white",
-                column_split = obj$age_group,
+                column_split = obj$tissue,
                 top_annotation = column_ha,
+                right_annotation = row_ha,
                 col = col_fun,
                 clustering_distance_columns = "spearman",
                 cluster_columns = TRUE,
                 show_row_dend = FALSE,
                 show_column_dend = FALSE,
                 cluster_column_slices = FALSE,
-                row_title = "age-unique DMR (399)", 
+                row_title = ylab, 
                 column_title = "Samples",
                 column_title_side = "bottom",
                 column_names_gp = gpar(fontsize = 8),
@@ -187,11 +219,9 @@ idx <- rowSums(is.na(betas)) != ncol(betas)
 betas <- betas[idx,]
 rmethcoad <- rmethcoad[idx,]
 
-png("hm_TCGA.png", width = 800, height = 700)
-draw_hm(rmethcoad, sub_uniqueannot, betas)
-dev.off()
+draw_hm(rmethcoad, sub_uniqueannot, betas, "tumorigenesis-specific DMRs (5190)")
 
-#draw hm for normal tissue, split by age
+### draw hm for normal tissue, split by age
 load("data/rdata/uniqueDMRs_age.RData")
 rmethcoadnm <- rmethcoad[,rmethcoad$tissue != "Primary Solid Tumor"] 
 

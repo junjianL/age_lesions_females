@@ -10,6 +10,7 @@ suppressPackageStartupMessages({
   library(ggplot2)
   library(cowplot)
   library(annotatr)
+  
 })
 
 
@@ -52,32 +53,30 @@ age <- get_change(colData(bsCombined)$lesion %in% c("cecum_old", "sigmoid_old"),
 seg <- get_change(colData(bsCombined)$lesion %in% c("cecum_old", "cecum_young"), 
   colData(bsCombined)$lesion %in% c("sigmoid_old", "sigmoid_young"))
 
-df <- data.frame("SSA/P" = ssa,
+df <- data.frame(SSA = ssa,
                  cADN = cadn,
                  Age = age,
                  Segment = seg)
 
 #custom functions to input in ggpairs
 
+#scatter with density for colors
 custom_func <- function(data, mapping){
   ggplot(data = data, mapping = mapping) +
     geom_bin2d() +
+    geom_smooth(method = lm, se = FALSE, color = "black") +
     scale_fill_distiller(palette='RdBu', trans='log10') +
-    scale_x_continuous(limits = c(-0.6,0.8)) +
+    scale_x_continuous(limits = c(-0.6,0.9)) +
     scale_y_continuous(limits = c(-0.6,0.9)) 
 }
 
+#diagonal
 custom_func2 <- function(data, mapping){
   ggplot(data = data, mapping = mapping) +
     geom_density() +
-    scale_x_continuous(limits = c(-0.6,0.8)) +
+    scale_x_continuous(limits = c(-0.6,0.9)) +
     scale_y_sqrt(limits = c(0,120))
 }
-
-GGally::ggpairs(df, 
-                upper = list(continuous = custom_func2),
-                lower = list(continuous = custom_func),
-                diag = list(na = "naDiag"))
 
 ## within genomic compartments
 
@@ -100,7 +99,7 @@ df_proms <- grab_sites(annotations_genes, gr, df) #1,064,915, 402,616 proms
 df_proms <- df_proms[rowSums(df_proms) > 0,] #653,484
 
 GGally::ggpairs(df_proms,
-                upper = NULL,
+                #upper = NULL,
                 lower = list(continuous = custom_func),
                 diag = list(continuous = custom_func2)) +
   theme_bw()
