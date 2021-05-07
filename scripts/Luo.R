@@ -32,8 +32,6 @@ mset$location <- gsub("left", "Left", mset$location)
 mset$location <- gsub("right", "Right", mset$location) 
 mset$location <- gsub("Retum", "Rectum", mset$location) 
 mset$location <- gsub("colon", "Unknown", mset$location) 
-#mset$location <- gsub("Proximal|Transverse", "Right", mset$location)
-#mset$location <- gsub("Distal", "Left", mset$location)
 mset$location <- factor(mset$location, levels = c("Unknown","Right","Proximal",
                                                   "Transverse", "Left","Distal", 
                                                   "Rectum"))
@@ -64,52 +62,21 @@ limma::plotMDS(getM(msetfem), top=10000, gene.selection="common",
 legend("top", legend=levels(factor(msetfem$location)), text.col=pal,
        bg="white", cex=0.7)
 
-#### Draw heatmap ####
+#### Draw heatmap Figure 4.A ####
 meth_vals <- as.matrix(getBeta(msetfem))
 
+source("helpers.R")
+
 draw_hm <- function(obj, regions, meth_vals, ylab){
-  gr <- rowRanges(obj)
-  mcols(gr) <- meth_vals
-  hits <- findOverlaps(regions, gr)
-  gr$DMR <- NA
-  gr[subjectHits(hits)]$DMR <- queryHits(hits)
+  score <- get_mat(obj, meth_vals, regions)[,-1]
   
-  gr_sub <- gr[!is.na(gr$DMR)]
-  
-  #use plyranges
-  gr_dmr <- gr_sub %>% 
-    group_by(DMR) %>% 
-    summarise_at(
-      colnames(meth_vals), mean, na.rm=TRUE
-    )
-  
-  #Get matrix
-  score <- as.matrix(gr_dmr)[,-1]
-  print(dim(score))
-  
-  #Get AUC, TPR, 1-FPR
   truth <- ifelse(obj$tissue %in% c("adenoma","cancer"), 1,0)
-  auc <- apply(score, 1, function(u){
-    rocc <- pROC::roc(truth, u, direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
-    pROC::auc(rocc)
-  })
   
-  sens <- apply(score, 1, function(u){
-    rocc <- pROC::roc(truth, u, direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
-    thresh <- pROC::coords(rocc, "best", transpose = TRUE)
-    thresh[[3]]
-  })
-  
-  spec <- apply(score, 1, function(u){
-    rocc <- pROC::roc(truth, u, direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
-    thresh <- pROC::coords(rocc, "best", transpose = TRUE)
-    thresh[[2]]
-  })
+  if(metric) mets <- get_metric(meth_vals, score, truth) 
   
   #Colors
   col <- RColorBrewer::brewer.pal(n = 9, name = "YlGnBu")
   col_anot <- RColorBrewer::brewer.pal(n = 9, name = "Set1")
-  #purples <- RColorBrewer::brewer.pal(n = 3, name = "Purples")
   greens <- RColorBrewer::brewer.pal(n = 4, name = "Greens")
   pinks <- RColorBrewer::brewer.pal(n = 7, name = "RdPu")
   
@@ -129,17 +96,17 @@ draw_hm <- function(obj, regions, meth_vals, ylab){
   names(col_seg) <- levels(obj$location)
   
   #column annot
-  column_ha <- HeatmapAnnotation(#Age = obj$age_group, 
+  column_ha <- HeatmapAnnotation( 
                                  Tissue = obj$tissue,
                                  Location = obj$location,
-                                 col = list(#Age = col_age,
+                                 col = list(
                                             Tissue = col_tis,
                                             Location = col_seg), 
                                  gp = gpar(col = "black"))
   #row annot
-  row_ha <- rowAnnotation("AUC" = auc,
-                          "TPR" = sens,
-                          "1-FPR" = spec,
+  row_ha <- rowAnnotation("AUC" = mets$auc,
+                          "TPR" = mets$sens,
+                          "1-FPR" = mets$spec,
                           col = list("AUC" = col_auc,
                                      "TPR" = col_tpr,
                                      "1-FPR" = col_fpr))
@@ -174,60 +141,66 @@ draw_hm <- function(obj, regions, meth_vals, ylab){
 load("data/rdata/unique_lesions_filt.RData")
 draw_hm(msetfem, sub_uniqueannot, meth_vals, "Tumorigenesis-specific DMRs (5329)")
 
-#### combine all markers into single signature and draw ROC ####
+#### Get ROC curve for each DMR ####
 
-combine_marks <- function(obj, regions){
-  gr <- rowRanges(obj)
-  mcols(gr) <- meth_vals
-  hits <- findOverlaps(regions, gr)
-  gr$DMR <- NA
-  gr[subjectHits(hits)]$DMR <- queryHits(hits)
+
+multi_roc <- function(idx, msetfem, meth_vals, sub_uniqueannot, tissue){
   
-  gr_sub <- gr[!is.na(gr$DMR)]
+  beta_meds <- get_mat(msetfem[,idx], meth_vals[,idx], sub_uniqueannot)
+  truth <- ifelse(msetfem$tissue[idx] == tissue, 1,0)
   
-  #use plyranges
-  gr_dmr <- gr_sub %>% 
-    group_by(DMR) %>% 
-    summarise_at(
-      colnames(meth_vals), median, na.rm=TRUE
-    )
+  sens_mat <- apply(beta_meds, 1, function(u){
+    rocc <- pROC::roc(truth, u[-1], direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
+    return(data.frame(fdr = rocc$specificities,
+                      tpr = rocc$sensitivities, 
+                      dmr = u[1]))
+  })
   
-  #Get matrix
-  score <- as.matrix(gr_dmr)[,-1]
-  mean_betas <- colMedians(score, na.rm = TRUE)
+  
+  roc_df <- do.call(rbind, sens_mat)
+  roc_df$fdr <- jitter(roc_df$fdr, factor = 10, amount = 1)
+  roc_df$tpr <- jitter(roc_df$tpr, factor = 10, amount = 1)
+  
+  ### combine all markers into single signature and draw ROC ###
+  
+  mean_betas <- colMedians(beta_meds[,-1], na.rm = TRUE)
+  
+  test <- pROC::roc(truth, mean_betas, direction = "<", plot = FALSE,
+                    percent=TRUE, print.auc=TRUE, print.thres = "best")
+  
+  center_df <- data.frame(fdr = test$specificities,
+                          tpr = test$sensitivities)
+  
+  point_df <- pROC::coords(test, "best")
+  point_df$phrase <- paste0(round(point_df$threshold,1)," (",
+                            round(point_df$specificity,1),"%, ",
+                            round(point_df$sensitivity,1),"%)")
+  
+  # plot
+  
+  p <- ggplot() +
+    scale_x_reverse() +
+    geom_path(data = center_df, aes(fdr,tpr), size = 1.5) +
+    geom_path(data = roc_df, aes(fdr,tpr, group = dmr), alpha = 0.005) +
+    geom_point(data = point_df, aes(specificity,sensitivity), color = "blue", size = 5) +
+    geom_label(data = point_df, aes(specificity-20,sensitivity-4, label = phrase)) +
+    geom_label(aes(50,50, label = paste0("AUC: ",round(pROC::auc(test),1),"%"))) +
+    theme_classic() +
+    xlab("Specificity (%)") +
+    ylab("Sensitivity (%)") +
+    ggtitle(sprintf("Combined selected markers, Luo 2014 (%s)",tissue))
+  
+  return(p)
 }
-mean_betas <- combine_marks(msetfem, sub_uniqueannot)
 
-#set truth and draw ROC for aden and cancer separatelly
-
-#adenoma
-idx <- msetfem$tissue != "cancer"
-aden <- droplevels(msetfem$tissue[idx])
-mean_aden <- mean_betas[idx] 
-
-truth <- ifelse(aden == "adenoma", 1,0)
-pROC::roc(truth, mean_aden, direction = "<", plot = TRUE,
-          main= "Combined selected markers, Luo 2014 (adenoma)",
-          percent=TRUE, print.auc=TRUE, print.thres = "best")
+#adenomas
+pdf("Fig4A_ROCs_luo.pdf", width = 5, height = 5)
+aden <- msetfem$tissue != "cancer"
+multi_roc(aden, msetfem, meth_vals, sub_uniqueannot, "adenoma")
 
 #cancer
-
-idx <- msetfem$tissue != "adenoma"
-aden <- droplevels(msetfem$tissue[idx])
-mean_aden <- mean_betas[idx] 
-
-truth <- ifelse(aden == "cancer", 1,0)
-pROC::roc(truth, mean_aden, direction = "<", plot = TRUE,
-          main= "Combined selected markers, Luo 2014 (cancer)",
-          percent=TRUE, print.auc=TRUE, print.thres = "best")
+crc <- msetfem$tissue != "adenoma"
+multi_roc(crc, msetfem, meth_vals, sub_uniqueannot, "cancer")
+dev.off()
 
 
-# #calculate ROC for DMRs including age (les without seg, but with age)
-# load("data/rdata/les_with_age.RData")
-# mean_betas <- combine_marks(msetfem, sub_unique)
-# 
-# #set truth and draw ROC
-# truth <- ifelse(msetfem$tissue %in% c("adenoma","cancer"), 1,0)
-# pROC::roc(truth, mean_betas, direction = "<", plot = TRUE,
-#           main= "Combined selected markers with age, Luo 2014",
-#           percent=TRUE, print.auc=TRUE, print.thres = "best")

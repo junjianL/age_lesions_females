@@ -45,28 +45,6 @@ getClinicalNames("COAD")
 idx <- !is.na(colData(acc)[["years_to_birth"]])
 accfilt <- acc[,idx,]
 
-#choose adenocarcinomas
-# idx <- colData(accfilt)[["histological_type.x"]] == "colon adenocarcinoma" | 
-#   colData(accfilt)[["histological_type.y"]] == "Colon Adenocarcinoma" 
-# accfilt <- accfilt[,idx,]
-
-#split and choose samples with paired normal tissue
-#(first way i figured how to do this)
-
-#grab barcodes with sample type 11
-# idx <- grepl("^11", TCGAbarcode(sampleMap(accfilt)$colname,
-#                          participant = FALSE, sample = TRUE))
-
-#grab sampleID from the above
-# normsamps <- sampleMap(accfilt)$primary[idx]
-
-#find barcodes containing these sampleIDs
-# idx <- grepl(paste(normsamps,collapse="|"), sampleMap(accfilt)$colname)
-
-#these are the patients with paired samples
-# final <- unique(sampleMap(accfilt)[idx,"primary"])
-# accfilt <- accfilt[,final,]
-
 # Converting Assays to SummarizedExperiment
 methcoad <- CpGtoRanges(accfilt)
 rmethcoad <- experiments(methcoad)[[1]]
@@ -96,48 +74,13 @@ rmethcoad$patient.gender <- factor(rmethcoad$patient.gender)
 
 #### Draw heatmap ####
 
+source("scripts/helpers.R")
+
 draw_hm <- function(obj, regions, meth_vals, ylab){
-  gr <- rowRanges(obj)
-  seqlevels(gr) <- paste0("chr",seqlevels(gr))
-  mcols(gr) <- meth_vals
-  hits <- findOverlaps(regions, gr)
-  gr$DMR <- NA
-  gr[subjectHits(hits)]$DMR <- queryHits(hits)
   
-  gr_sub <- gr[!is.na(gr$DMR)]
+  score <- get_mat(obj, meth_vals, regions)[,-1]
   
-  #use plyranges
-  gr_dmr <- gr_sub %>% 
-    group_by(DMR) %>% 
-    summarise_at(
-      colnames(meth_vals), mean, na.rm=TRUE
-    )
-  
-  gr_dmr
-  #Get matrix
-  madr <- rowVars(as.matrix(gr_dmr)[,-1])
-  o <- order(madr, decreasing = TRUE)
-  score <- as.matrix(gr_dmr)[o,-1]
-  print(dim(score))
-  
-  #Get AUC, TPR, 1-FPR
-  truth <- ifelse(obj$tissue == "Primary Solid Tumor", 1,0)
-  auc <- apply(score, 1, function(u){
-    rocc <- pROC::roc(truth, u, direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
-    pROC::auc(rocc)
-  })
-  
-  sens <- apply(score, 1, function(u){
-    rocc <- pROC::roc(truth, u, direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
-    thresh <- pROC::coords(rocc, "best", transpose = TRUE)
-    thresh[[3]]
-  })
-  
-  spec <- apply(score, 1, function(u){
-    rocc <- pROC::roc(truth, u, direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
-    thresh <- pROC::coords(rocc, "best", transpose = TRUE)
-    thresh[[2]]
-  })
+  if(metric) mets <- get_metric(meth_vals, score)
   
   #Colors
   col <- RColorBrewer::brewer.pal(n = 9, name = "YlGnBu")
@@ -175,9 +118,9 @@ draw_hm <- function(obj, regions, meth_vals, ylab){
       Gender = col_gen))
   
   #row annot
-  row_ha <- rowAnnotation("AUC" = auc,
-                          "TPR" = sens,
-                          "1-FPR" = spec,
+  row_ha <- rowAnnotation("AUC" = mets$auc,
+                          "TPR" = mets$sens,
+                          "1-FPR" = mets$spec,
                           col = list("AUC" = col_auc,
                                      "TPR" = col_tpr,
                                      "1-FPR" = col_fpr))
@@ -241,34 +184,53 @@ dev.off()
 
 
 #### combine all markers into single signature and draw ROC ####
+seqlevels(rowRanges(rmethcoad)) <- paste0("chr",seqlevels(rowRanges(rmethcoad)))
 
-combine_marks <- function(obj, regions, meth_vals){
-  gr <- rowRanges(obj)
-  seqlevels(gr) <- paste0("chr",seqlevels(gr))
-  mcols(gr) <- meth_vals
-  hits <- findOverlaps(regions, gr)
-  gr$DMR <- NA
-  gr[subjectHits(hits)]$DMR <- queryHits(hits)
-  
-  gr_sub <- gr[!is.na(gr$DMR)]
-  
-  #use plyranges
-  gr_dmr <- gr_sub %>% 
-    group_by(DMR) %>% 
-    summarise_at(
-      colnames(meth_vals), mean, na.rm=TRUE
-    )
-  
-  #Get matrix
-  score <- as.matrix(gr_dmr)[,-1]
-  mean_betas <- colMedians(score, na.rm = TRUE)
-}
-mean_betas <- combine_marks(rmethcoad, sub_uniqueannot, betas)
+beta_meds <- get_mat(rmethcoad, betas, sub_uniqueannot)
 
-#set truth and draw ROC
 truth <- ifelse(rmethcoad$tissue == "Primary Solid Tumor", 1,0)
-pROC::roc(truth, mean_betas, direction = "<", plot = TRUE,
-          main= "Combined selected markers, TCGA",
-          percent=TRUE, print.auc=TRUE, print.thres = "best")
+sens_mat <- apply(beta_meds, 1, function(u){
+  rocc <- pROC::roc(truth, u[-1], direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
+  return(data.frame(fdr = rocc$specificities,
+                    tpr = rocc$sensitivities, 
+                    dmr = u[1]))
+})
+
+
+roc_df <- do.call(rbind, sens_mat)
+roc_df$fdr <- jitter(roc_df$fdr, factor = 10, amount = 1)
+roc_df$tpr <- jitter(roc_df$tpr, factor = 10, amount = 1)
+
+
+# combine all markers into single signature and bolder ROC #
+mean_betas <- colMedians(beta_meds[,-1], na.rm = TRUE)
+test <- pROC::roc(truth, mean_betas, direction = "<", plot = TRUE,
+                  percent=TRUE, print.auc=TRUE, print.thres = "best")
+
+center_df <- data.frame(fdr = test$specificities,
+                        tpr = test$sensitivities)
+
+point_df <- pROC::coords(test, "best")
+point_df$phrase <- paste0(round(point_df$threshold,1)," (",
+                          round(point_df$specificity,1),"%, ",
+                          round(point_df$sensitivity,1),"%)")
+
+# plot
+
+ggplot() +
+  scale_x_reverse() +
+  geom_path(data = center_df, aes(fdr,tpr), size = 1.5) +
+  geom_path(data = roc_df, aes(fdr,tpr, group = dmr), alpha = 0.005) +
+  geom_point(data = point_df, aes(specificity,sensitivity), color = "blue", size = 5) +
+  geom_label(data = point_df, aes(specificity-20,sensitivity-4, label = phrase)) +
+  geom_label(aes(50,50, label = paste0("AUC: ",round(pROC::auc(test),1),"%"))) +
+  theme_classic() +
+  xlab("Specificity (%)") +
+  ylab("Sensitivity (%)") +
+  ggtitle("Combined selected markers, TCGA")
+
+ggsave("ROC_TCGA.pdf", width = 5, height = 5)
+
+
 
 

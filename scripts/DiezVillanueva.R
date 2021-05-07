@@ -131,50 +131,16 @@ legend("top", legend=levels(factor(diezfem$tissue)), text.col=pal,
 #### draw heatmap with selected markers ####
 
 load("data/rdata/unique_lesions_filt.RData")
+source("helpers.R")
 
 # get probes in selected markers
 meth_vals <- as.matrix(getBeta(diezfem))
 
-draw_hm <- function(obj, regions, splitby, ylab, metrics){
-  gr <- rowRanges(obj)
-  mcols(gr) <- meth_vals
-  hits <- findOverlaps(regions, gr)
-  gr$DMR <- NA
-  gr[subjectHits(hits)]$DMR <- queryHits(hits)
+draw_hm <- function(obj, meth_vals, regions, splitby, ylab, metrics){
   
-  gr_sub <- gr[!is.na(gr$DMR)]
+  score <- get_mat(obj, meth_vals, regions)[,-1]
   
-  #use plyranges
-  gr_dmr <- gr_sub %>% 
-    group_by(DMR) %>% 
-    summarise_at(
-      colnames(meth_vals), mean, na.rm=TRUE
-    )
-  
-  #Get matrix
-  score <- as.matrix(gr_dmr)[,-1]
-  print(dim(score))
-  
-  if(metrics){
-  #Get AUC, TPR, 1-FPR
-  truth <- ifelse(grepl("_T",colnames(meth_vals)), 1,0)
-  auc <- apply(score, 1, function(u){
-    rocc <- pROC::roc(truth, u, direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
-    pROC::auc(rocc)
-  })
-  
-  sens <- apply(score, 1, function(u){
-    rocc <- pROC::roc(truth, u, direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
-    thresh <- pROC::coords(rocc, "best", transpose = TRUE)
-    thresh[[3]]
-  })
-  
-  spec <- apply(score, 1, function(u){
-    rocc <- pROC::roc(truth, u, direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
-    thresh <- pROC::coords(rocc, "best", transpose = TRUE)
-    thresh[[2]]
-  })
-  }
+  if(metric) mets <- get_metric(meth_vals, score) 
   
   #Colors
   col <- RColorBrewer::brewer.pal(n = 9, name = "YlGnBu")
@@ -212,9 +178,9 @@ draw_hm <- function(obj, regions, splitby, ylab, metrics){
                                  gp = gpar(col = "black"))
   #row annot
   if(metrics){
-  row_ha <- rowAnnotation("AUC" = auc,
-                          "TPR" = sens,
-                          "1-FPR" = spec,
+  row_ha <- rowAnnotation("AUC" = mets$auc,
+                          "TPR" = mets$sens,
+                          "1-FPR" = mets$spec,
                           col = list("AUC" = col_auc,
                                      "TPR" = col_tpr,
                                      "1-FPR" = col_fpr))
@@ -247,6 +213,8 @@ draw_hm <- function(obj, regions, splitby, ylab, metrics){
   return(hm)
 }
 
+
+#draw Figure 4.B
 draw_hm(diezfem, sub_uniqueannot, diezfem$tissue,
         "Tumorigenesis-specific DMRs (5322)", TRUE) #329 samples
 
@@ -260,33 +228,60 @@ meth_vals <- as.matrix(getBeta(dieznm))
 
 draw_hm(dieznm, age, dieznm$age_group, "age_associated DMRs (2951)", FALSE)
 
-#### combine all markers into single signature and draw ROC ####
 
-combine_marks <- function(obj, regions){
-  gr <- rowRanges(obj)
-  mcols(gr) <- meth_vals
-  hits <- findOverlaps(regions, gr)
-  gr$DMR <- NA
-  gr[subjectHits(hits)]$DMR <- queryHits(hits)
-  
-  gr_sub <- gr[!is.na(gr$DMR)]
-  
-  #use plyranges
-  gr_dmr <- gr_sub %>% 
-    group_by(DMR) %>% 
-    summarise_at(
-      colnames(meth_vals), mean, na.rm=TRUE
-    )
-  
-  #Get matrix
-  score <- as.matrix(gr_dmr)[,-1]
-  mean_betas <- colMedians(score, na.rm = TRUE)
-}
-mean_betas <- combine_marks(diezfem, sub_uniqueannot)
+# Add metrics to Supp.Table 1
 
-#set truth and draw ROC
+metrics <- get_metric(meth_vals, beta_meds[,-1])
+
+sub_uniqueannot$auc <- NA
+sub_uniqueannot$auc[beta_meds[,1]] <- metrics[,1]
+
+
+# get ROC curve for each DMR #
+
+beta_meds <- get_mat(diezfem, meth_vals, sub_uniqueannot)
+
 truth <- ifelse(grepl("_T",colnames(meth_vals)), 1,0)
+sens_mat <- apply(beta_meds, 1, function(u){
+  rocc <- pROC::roc(truth, u[-1], direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
+  return(data.frame(fdr = rocc$specificities,
+                    tpr = rocc$sensitivities, 
+                    dmr = u[1]))
+})
+
+
+roc_df <- do.call(rbind, sens_mat)
+roc_df$fdr <- jitter(roc_df$fdr, factor = 10, amount = 1)
+roc_df$tpr <- jitter(roc_df$tpr, factor = 10, amount = 1)
+
+
+# combine all markers into single signature and bolder ROC #
+
+mean_betas <- colMedians(beta_meds[,-1], na.rm = TRUE)
+
 test <- pROC::roc(truth, mean_betas, direction = "<", plot = TRUE,
-          main= "Combined selected markers, Diez-Villanueva 2020",
           percent=TRUE, print.auc=TRUE, print.thres = "best")
 
+center_df <- data.frame(fdr = test$specificities,
+                        tpr = test$sensitivities)
+
+point_df <- coords(test, "best")
+point_df$phrase <- paste0(round(point_df$threshold,1)," (",
+                           round(point_df$specificity,1),"%, ",
+                          round(point_df$sensitivity,1),"%)")
+
+# plot
+
+ggplot() +
+  scale_x_reverse() +
+  geom_path(data = center_df, aes(fdr,tpr), size = 1.5) +
+  geom_path(data = roc_df, aes(fdr,tpr, group = dmr), alpha = 0.005) +
+  geom_point(data = point_df, aes(specificity,sensitivity), color = "blue", size = 5) +
+  geom_label(data = point_df, aes(specificity-20,sensitivity-5, label = phrase)) +
+  geom_label(aes(50,50, label = paste0("AUC: ",round(pROC::auc(test),1),"%"))) +
+  theme_classic() +
+  xlab("Specificity (%)") +
+  ylab("Sensitivity (%)") +
+  ggtitle("Combined selected markers, Diez-Villanueva 2020")
+
+ggsave("Fig4B_ROC_diez.pdf", width = 5, height = 5)
