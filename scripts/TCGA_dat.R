@@ -37,10 +37,6 @@ sampleTables(acc)
 
 getClinicalNames("COAD")
 
-#choose females
-#idx <- colData(acc)[["gender.x"]] == "female" | colData(acc)[["gender.y"]] == "FEMALE" 
-#accfilt <- acc[,idx,]
-
 #choose samples with ages
 idx <- !is.na(colData(acc)[["years_to_birth"]])
 accfilt <- acc[,idx,]
@@ -182,13 +178,34 @@ png("hmage_TCGA.png", width = 800, height = 700)
 draw_hm(rmethcoadnm, unique_age, betas) #399 regions
 dev.off()
 
+#### Add metrics to Supp.Table 1 ####
 
-#### combine all markers into single signature and draw ROC ####
+load("data/rdata/unique_lesions_filt_diezAUC_luo_.RData")
+source("scripts/helpers.R")
+
 seqlevels(rowRanges(rmethcoad)) <- paste0("chr",seqlevels(rowRanges(rmethcoad)))
 
 beta_meds <- get_mat(rmethcoad, betas, sub_uniqueannot)
 
 truth <- ifelse(rmethcoad$tissue == "Primary Solid Tumor", 1,0)
+
+#get AUCs per DMR
+metrics <- get_metric(betas, beta_meds[,-1], truth)
+
+#add to tumor-specific DMRs
+sub_uniqueannot$auc.tcga <- NA
+sub_uniqueannot$auc.tcga[beta_meds[,1]] <- metrics[,1]
+
+save(sub_uniqueannot, file = "data/rdata/unique_lesions_filt_diezAUC_luo_tcga.RData")
+
+#this GR should have all the AUCs from the 3 datasets, so we save as .csv
+dfgr <- as.data.frame(sub_uniqueannot)
+head(dfgr)
+write.table(dfgr, file = "data/tables/uniqueDMRs_lesion_merged_filt_allAUCs.txt", 
+            quote = FALSE, row.names = FALSE, sep = "\t")
+
+#### combine all markers into single signature and draw ROC ####
+
 sens_mat <- apply(beta_meds, 1, function(u){
   rocc <- pROC::roc(truth, u[-1], direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
   return(data.frame(fdr = rocc$specificities,

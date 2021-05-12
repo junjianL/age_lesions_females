@@ -50,8 +50,8 @@ cadn <- get_change(colData(bsCombined)$lesion == "Adenoma",
 age <- get_change(colData(bsCombined)$lesion %in% c("cecum_old", "sigmoid_old"), 
   colData(bsCombined)$lesion %in% c("cecum_young", "sigmoid_young"))
 
-seg <- get_change(colData(bsCombined)$lesion %in% c("cecum_old", "cecum_young"), 
-  colData(bsCombined)$lesion %in% c("sigmoid_old", "sigmoid_young"))
+seg <- get_change(colData(bsCombined)$lesion %in% c("sigmoid_old", "sigmoid_young"),
+  colData(bsCombined)$lesion %in% c("cecum_old", "cecum_young"))
 
 df <- data.frame(SSA = ssa,
                  cADN = cadn,
@@ -78,13 +78,14 @@ custom_func2 <- function(data, mapping){
     scale_y_sqrt(limits = c(0,120))
 }
 
+
 ## within genomic compartments
 
 #promoters
-# annotsgene <- c("hg19_genes_promoters")
-# annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
-# annotations_genes <- unique(annotations_genes) #unique transcripts, not genes
-# annotations_genes <- annotations_genes[!duplicated(annotations_genes$gene_id)]
+annotsgene <- c("hg19_genes_promoters")
+annotations_genes = build_annotations(genome = 'hg19', annotations = annotsgene)
+annotations_genes <- unique(annotations_genes) #unique transcripts, not genes
+annotations_genes <- annotations_genes[!duplicated(annotations_genes$gene_id)]
 
 #islands
 annotsgene <- c("hg19_cpg_islands")
@@ -99,7 +100,8 @@ df_proms <- grab_sites(annotations_genes, gr, df) #1,064,915, 402,616 proms
 df_proms <- df_proms[rowSums(df_proms) > 0,] #653,484
 
 GGally::ggpairs(df_proms,
-                #upper = NULL,
+                upper = list(continuous = wrap(ggally_cor, 
+                                               display_grid = FALSE, stars = FALSE)),
                 lower = list(continuous = custom_func),
                 diag = list(continuous = custom_func2)) +
   theme_bw()

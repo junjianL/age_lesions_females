@@ -60,7 +60,7 @@ anno_df$n / nrow(bsCombined) * 100
 
 load("data/DMRs_lesions_3.RData")
 load("data/DMRs_age_final.RData")
-load("data/rdata/unique_lesions_filt.RData")
+#load("data/rdata/unique_lesions_filt.RData")
 
 
 #dirty filtering

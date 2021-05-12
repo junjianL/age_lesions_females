@@ -131,7 +131,7 @@ legend("top", legend=levels(factor(diezfem$tissue)), text.col=pal,
 #### draw heatmap with selected markers ####
 
 load("data/rdata/unique_lesions_filt.RData")
-source("helpers.R")
+source("scripts/helpers.R")
 
 # get probes in selected markers
 meth_vals <- as.matrix(getBeta(diezfem))
@@ -229,19 +229,26 @@ meth_vals <- as.matrix(getBeta(dieznm))
 draw_hm(dieznm, age, dieznm$age_group, "age_associated DMRs (2951)", FALSE)
 
 
-# Add metrics to Supp.Table 1
+#### Add metrics to Supp.Table 1 ####
 
-metrics <- get_metric(meth_vals, beta_meds[,-1])
-
-sub_uniqueannot$auc <- NA
-sub_uniqueannot$auc[beta_meds[,1]] <- metrics[,1]
-
-
-# get ROC curve for each DMR #
-
+#get matrix of betas per regions
 beta_meds <- get_mat(diezfem, meth_vals, sub_uniqueannot)
 
+#set truth matrix
 truth <- ifelse(grepl("_T",colnames(meth_vals)), 1,0)
+
+#get AUCs per DMR
+metrics <- get_metric(meth_vals, beta_meds[,-1], truth)
+
+#add to tumor-specific DMRs
+sub_uniqueannot$auc.diez <- NA
+sub_uniqueannot$auc.diez[beta_meds[,1]] <- metrics[,1]
+
+save(sub_uniqueannot, file = "data/rdata/unique_lesions_filt_diezAUC.RData")
+
+
+#### get ROC curve for each DMR ####
+
 sens_mat <- apply(beta_meds, 1, function(u){
   rocc <- pROC::roc(truth, u[-1], direction = "<", plot = FALSE, percent = TRUE, quiet = TRUE)
   return(data.frame(fdr = rocc$specificities,

@@ -141,8 +141,38 @@ draw_hm <- function(obj, regions, meth_vals, ylab){
 load("data/rdata/unique_lesions_filt.RData")
 draw_hm(msetfem, sub_uniqueannot, meth_vals, "Tumorigenesis-specific DMRs (5329)")
 
-#### Get ROC curve for each DMR ####
+#### Add metrics to Supp.Table 1 ####
 
+load("data/rdata/unique_lesions_filt_diezAUC.RData")
+source("scripts/helpers.R")
+
+aden <- msetfem$tissue != "cancer"
+crc <- msetfem$tissue != "adenoma"
+
+beta_meds_aden <- get_mat(msetfem[,aden], meth_vals[,aden], sub_uniqueannot)
+truth_aden <- ifelse(msetfem$tissue[aden] == "adenoma", 1,0)
+
+beta_meds_crc <- get_mat(msetfem[,crc], meth_vals[,crc], sub_uniqueannot)
+truth_crc <- ifelse(msetfem$tissue[crc] == "cancer", 1,0)
+
+#get AUCs per DMR
+metrics_a <- get_metric(meth_vals[,aden], beta_meds_aden[,-1], truth_aden)
+
+metrics_c <- get_metric(meth_vals[,crc], beta_meds_crc[,-1], truth_crc)
+
+#add to tumor-specific DMRs
+sub_uniqueannot$auc.luo.aden <- NA
+sub_uniqueannot$auc.luo.aden[beta_meds_aden[,1]] <- metrics_a[,1]
+
+
+sub_uniqueannot$auc.luo.crc <- NA
+sub_uniqueannot$auc.luo.crc[beta_meds_crc[,1]] <- metrics_c[,1]
+
+
+save(sub_uniqueannot, file = "data/rdata/unique_lesions_filt_diezAUC_luo_.RData")
+
+
+#### Get ROC curve for each DMR ####
 
 multi_roc <- function(idx, msetfem, meth_vals, sub_uniqueannot, tissue){
   
